@@ -16,7 +16,6 @@
 ## Deploy (PowerShell, WSL20.04 can't run workerd locally)
 
 ```powershell
-cd C:\Users\user\Documents\GitHub\gacha-trend
 npx wrangler login
 npm --prefix api run db:migrate   # remote D1
 npm --prefix api run deploy       # -> https://gacha-trend-api.workers.dev
@@ -27,8 +26,6 @@ npm --prefix web run deploy       # builds Astro dist/ + deploys web worker
 Local: `npm run api:dev` + `npm run web:dev` (separate terminals).
 
 ## Keys (Dashboard UI: Workers > gacha-trend-api > Settings > Variables and Secrets)
-
-Missing key = collector returns `[]`, nothing crashes.
 
 ```
 YOUTUBE_API_KEY, INGEST_TOKEN          # in use
@@ -46,7 +43,7 @@ No official keyless Twitch API exists — Helix needs a free `dev.twitch.tv` app
 - To show Twitch numbers without keys: push them from homelab via `/api/ingest`
   with `"platform":"twitch"` — ingest accepts any platform string.
 
-## Homelab push (TikTok/IG)
+## Homelab push (TikTok/IG/Reddit)
 
 ```bash
 curl -X POST "https://<api>.workers.dev/api/ingest?game=genshin-impact" \
