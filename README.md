@@ -30,7 +30,8 @@ npm --prefix web install
 ```sh
 npm --prefix api run db:migrate   # remote D1
 npm --prefix api run deploy       # -> https://<api>.<account>.workers.dev
-PUBLIC_API_BASE="https://<api>.<account>.workers.dev" npm --prefix web run deploy
+PUBLIC_API_BASE="https://<api>.<account>.workers.dev" 
+npm --prefix web run deploy
 ```
 
 On Windows PowerShell, set the env var first:
