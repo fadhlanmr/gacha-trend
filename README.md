@@ -1,7 +1,9 @@
-# Gacha Trend (2 workers)
+# Gacha Trend
 
-- `api/` — Hono + D1 + cron. Collects YouTube/Reddit (Twitch off, X ingest-only). No assets.
-- `web/` — Astro static dashboard (ennead.cc style). Served by 2nd worker.
+Social-activity dashboard for gacha games. Two Cloudflare workers, all free tier:
+
+- `api/` — Hono + D1 + cron (daily 6am). Collects YouTube/Reddit (Twitch off, X ingest-only). No assets.
+- `web/` — Astro static dashboard. Served by a 2nd worker.
 
 ## Platform status (Cloudflare-side, verified 2026-09-19)
 
@@ -13,24 +15,48 @@
 | X | ingest-only | all free endpoints dead (fxtwitter/vx/syndication); no paid API per rule |
 | TikTok/IG | ingest-only | homelab push |
 
-## Deploy (PowerShell, WSL20.04 can't run workerd locally)
+## Prerequisites
 
-```powershell
+Node 20+, a Cloudflare account.
+
+```sh
 npx wrangler login
-npm --prefix api run db:migrate   # remote D1
-npm --prefix api run deploy       # -> https://gacha-trend-api.workers.dev
-$env:PUBLIC_API_BASE="https://gacha-trend-api.workers.dev"
-npm --prefix web run deploy       # builds Astro dist/ + deploys web worker
+npm --prefix api install
+npm --prefix web install
 ```
 
-Local: `npm run api:dev` + `npm run web:dev` (separate terminals).
+## Deploy
 
-## Keys (Dashboard UI: Workers > gacha-trend-api > Settings > Variables and Secrets)
+```sh
+npm --prefix api run db:migrate   # remote D1
+npm --prefix api run deploy       # -> https://<api>.<account>.workers.dev
+PUBLIC_API_BASE="https://<api>.<account>.workers.dev" npm --prefix web run deploy
+```
+
+On Windows PowerShell, set the env var first:
+
+```powershell
+$env:PUBLIC_API_BASE="https://<api>.<account>.workers.dev"
+npm --prefix web run deploy
+```
+
+## Local dev (separate terminals)
+
+```sh
+npm run api:dev
+npm run web:dev
+```
+
+## Keys (Cloudflare dashboard: Workers > gacha-trend-api > Settings > Variables and Secrets)
+
+Missing key = that collector returns `[]`, nothing crashes.
 
 ```
 YOUTUBE_API_KEY, INGEST_TOKEN          # in use
 TWITCH_CLIENT_ID, TWITCH_CLIENT_SECRET # only if you enable Twitch later
 ```
+
+For local dev, put the same values in `api/.dev.vars` (gitignored, never commit).
 
 ## Twitch: OFF by default
 
@@ -43,14 +69,20 @@ No official keyless Twitch API exists — Helix needs a free `dev.twitch.tv` app
 - To show Twitch numbers without keys: push them from homelab via `/api/ingest`
   with `"platform":"twitch"` — ingest accepts any platform string.
 
-## Homelab push (TikTok/IG/Reddit)
+## Homelab push (TikTok/IG/Reddit/X)
 
-```bash
-curl -X POST "https://<api>.workers.dev/api/ingest?game=genshin-impact" \
+```sh
+curl -X POST "https://<api>.<account>.workers.dev/api/ingest?game=genshin-impact" \
   -H "Authorization: Bearer $INGEST_TOKEN" -H "Content-Type: application/json" \
   -d '[{"platform":"tiktok","post_id":"abc","url":"...","title":"...","views":1,"likes":1,"comments":0,"shares":0}]'
 ```
 
+Accepts a single object or an array (max 500). Stored with `source='external'`.
+
 ## Add game
 
-Edit `api/src/games.json`, then `POST /api/collect?game=<slug>`.
+Edit `api/src/games.json` (one block per game, no code change), redeploy api, then:
+
+```sh
+curl -X POST "https://<api>.<account>.workers.dev/api/collect?game=<slug>"
+```
