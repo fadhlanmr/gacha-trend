@@ -1,0 +1,15 @@
+CREATE TABLE IF NOT EXISTS snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  game TEXT NOT NULL,
+  platform TEXT NOT NULL,
+  post_id TEXT NOT NULL,
+  url TEXT NOT NULL DEFAULT '',
+  title TEXT NOT NULL DEFAULT '',
+  views INTEGER NOT NULL DEFAULT 0,
+  likes INTEGER NOT NULL DEFAULT 0,
+  comments INTEGER NOT NULL DEFAULT 0,
+  shares INTEGER NOT NULL DEFAULT 0,
+  source TEXT NOT NULL DEFAULT 'cloudflare',
+  captured_at TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_snap_game_time ON snapshots(game, captured_at);

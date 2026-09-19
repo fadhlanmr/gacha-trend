@@ -1,0 +1,16 @@
+{
+  "name": "gacha-trend",
+  "version": "0.2.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "api:dev": "npm --prefix api run dev",
+    "api:deploy": "npm --prefix api run deploy",
+    "api:db": "npm --prefix api run db:migrate",
+    "api:check": "npm --prefix api run typecheck",
+    "web:dev": "npm --prefix web run dev",
+    "web:build": "npm --prefix web run build",
+    "web:deploy": "npm --prefix web run deploy",
+    "check": "npm run api:check && npm --prefix web exec astro check 2>/dev/null || true"
+  }
+}

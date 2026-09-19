@@ -1,0 +1,19 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "gacha-trend-api",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-01-01",
+  "triggers": { "crons": ["0 6 * * *"] },
+  "vars": {
+    "INGEST_TOKEN": "liatapasich"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "gacha-trend-db",
+      "database_id": "7ee45e27-ab8a-4991-b01e-6a21b25390c0",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "observability": { "enabled": true }
+}
