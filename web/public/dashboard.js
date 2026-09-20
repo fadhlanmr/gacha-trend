@@ -1,12 +1,6 @@
 // KISS dashboard client. No framework, Chart.js CDN only.
-// API base priority: ?api= URL param > build-time <meta name=api-base> > fallback.
-// (No localStorage: a stale saved URL would silently override the correct build value.)
-const meta = document.querySelector('meta[name="api-base"]')?.content || "";
-const params = new URLSearchParams(location.search);
-const FALLBACK = "https://gacha-trend-api.workers.dev";
-const API = params.get("api") || meta || FALLBACK;
-const apiEl = document.getElementById("apiUrl");
-if (apiEl) apiEl.textContent = API; // element removed from page = skip, don't crash
+// Single worker serves this page and /api/*, so calls are same-origin.
+const API = "";
 
 const $ = (id) => document.getElementById(id);
 const fmt = (n) => Intl.NumberFormat("en", { notation: "compact" }).format(n || 0);

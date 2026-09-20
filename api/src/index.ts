@@ -1,13 +1,9 @@
 import { Hono } from "hono";
-import { cors } from "hono/cors";
 import { collectAll, getGame, listGames } from "./collectors";
 import { getBuzz, getTrend, saveMetrics } from "./db";
 import { Env, Metric, num } from "./types";
 
 const app = new Hono<{ Bindings: Env }>();
-
-// Web worker is a separate origin -> allow it. GET is public; POST stays token-guarded.
-app.use("/api/*", cors({ origin: "*", allowMethods: ["GET", "POST", "OPTIONS"] }));
 
 app.get("/api/health", (c) => c.json({ ok: true }));
 app.get("/api/games", (c) => c.json({ games: listGames() }));

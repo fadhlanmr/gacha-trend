@@ -1,16 +1,22 @@
 {
   "name": "gacha-trend",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "api:dev": "npm --prefix api run dev",
-    "api:deploy": "npm --prefix api run deploy",
-    "api:db": "npm --prefix api run db:migrate",
-    "api:check": "npm --prefix api run typecheck",
-    "web:dev": "npm --prefix web run dev",
-    "web:build": "npm --prefix web run build",
-    "web:deploy": "npm --prefix web run deploy",
-    "check": "npm run api:check && npm --prefix web exec astro check 2>/dev/null || true"
+    "build": "astro build --root web",
+    "dev": "npm run build && wrangler dev --remote",
+    "deploy": "npm run build && wrangler deploy",
+    "db:migrate": "wrangler d1 migrations apply gacha-trend-db --remote",
+    "typecheck": "tsc --noEmit -p api/tsconfig.json"
+  },
+  "dependencies": {
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260919.1",
+    "astro": "^5.0.0",
+    "typescript": "^5.6.0",
+    "wrangler": "^4.135.0"
   }
 }

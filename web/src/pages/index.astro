@@ -1,16 +1,9 @@
----
-// Static dashboard (Astro). All data comes from the api Worker at runtime.
-// Set PUBLIC_API_BASE at build time, or override with ?api=https://... in the URL.
-const apiBase = import.meta.env.PUBLIC_API_BASE ?? "";
----
-
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Gacha Social Trend</title>
-<meta name="api-base" content={apiBase} />
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
 :root{--bg:#0f1115;--card:#171a21;--line:#262b36;--txt:#e8eaf0;--mut:#9aa3b2;--acc:#7c6cf0}
