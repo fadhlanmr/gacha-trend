@@ -48,3 +48,15 @@ export async function getBuzz(db: D1Database, game: string, days: number, keywor
   }
   return { samples: results?.length ?? 0, counts };
 }
+
+// Latest capture per post, ranked by views. SQLite: with MAX(captured_at) present,
+// the other bare columns come from the row that produced that max.
+export async function getTopPosts(db: D1Database, game: string, days: number, limit: number) {
+  const { results } = await db.prepare(
+    `SELECT platform, post_id, url, title, views, likes, comments, shares, source,
+       MAX(captured_at) AS captured_at
+     FROM snapshots WHERE game = ? AND captured_at >= datetime('now', ?)
+     GROUP BY platform, post_id ORDER BY views DESC LIMIT ?`
+  ).bind(game, `-${days} days`, limit).all();
+  return results;
+}

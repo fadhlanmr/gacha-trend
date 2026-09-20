@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { collectAll, getGame, listGames } from "./collectors";
-import { getBuzz, getTrend, saveMetrics } from "./db";
+import { getBuzz, getTopPosts, getTrend, saveMetrics } from "./db";
 import { Env, Metric, num } from "./types";
 
 const app = new Hono<{ Bindings: Env }>();
@@ -20,6 +20,17 @@ app.get("/api/trend", async (c) => {
     getBuzz(c.env.DB, game, days, cfg.keywords),
   ]);
   return c.json({ game, days, rows, buzz });
+});
+
+// Top posts (latest capture per post), ranked by views.
+// Query: /api/posts?game=genshin-impact&days=7&limit=10
+app.get("/api/posts", async (c) => {
+  const game = c.req.query("game") ?? "genshin-impact";
+  const days = Math.min(num(c.req.query("days")) || 7, 90);
+  const limit = Math.min(num(c.req.query("limit")) || 10, 50);
+  if (!getGame(game)) return c.json({ error: "unknown game" }, 404);
+  const rows = await getTopPosts(c.env.DB, game, days, limit);
+  return c.json({ game, days, rows });
 });
 
 // External ingest for homelab crawler. No Cloudflare crawl for tiktok/ig.

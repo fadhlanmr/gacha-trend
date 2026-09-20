@@ -6,22 +6,34 @@
 <title>Gacha Social Trend</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <style>
-:root{--bg:#0f1115;--card:#171a21;--line:#262b36;--txt:#e8eaf0;--mut:#9aa3b2;--acc:#7c6cf0}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,sans-serif}
+:root{--bg:#0f1115;--card:#171a21;--line:#262b36;--txt:#e8eaf0;--mut:#9aa3b2;--acc:#7c6cf0;--up:#4ade80;--down:#f87171}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--txt);font-family:system-ui,sans-serif}
 .wrap{max-width:1100px;margin:0 auto;padding:24px}
-.hero{text-align:center;padding:40px 0 16px}.hero h1{letter-spacing:4px;margin:0}.hero p{color:var(--mut)}
-.bar{display:flex;gap:8px;justify-content:center;margin:16px 0;flex-wrap:wrap}
-select,input,button{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 12px}
-button{cursor:pointer}button:hover{border-color:var(--acc)}
-h2{display:flex;justify-content:space-between;align-items:center}
+.hero{text-align:center;padding:32px 0 4px}.hero h1{letter-spacing:4px;margin:0}
+.hero p{color:var(--mut);margin:6px 0 0}
+.bar{display:flex;gap:8px;justify-content:center;margin:14px 0 6px;flex-wrap:wrap}
+select,input,button{background:var(--card);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:8px 12px;font:inherit}
+button{cursor:pointer}button:hover{border-color:var(--acc)}button.on{border-color:var(--acc);color:var(--acc)}
+.status{text-align:center;color:var(--mut);font-size:13px;min-height:20px}
+h2{margin:26px 0 2px}h3{margin:0 0 10px}
 .grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
 .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
-@media(max-width:800px){.grid4,.grid3{grid-template-columns:1fr 1fr}}
-@media(max-width:500px){.grid4,.grid3{grid-template-columns:1fr}}
+@media(max-width:820px){.grid4,.grid3{grid-template-columns:1fr 1fr}}
+@media(max-width:520px){.grid4,.grid3{grid-template-columns:1fr}}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin:12px 0}
-.big{font-size:28px;font-weight:700}.up{color:#4ade80}.down{color:#f87171}.mut{color:var(--mut);font-size:13px}
-.game{cursor:pointer}.game:hover{border-color:var(--acc)}table{width:100%;border-collapse:collapse;font-size:14px}
-td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}pre{white-space:pre-wrap;font-size:13px;color:var(--mut)}
+.big{font-size:26px;font-weight:700;margin:2px 0}
+.mut{color:var(--mut);font-size:13px}.up{color:var(--up)}.down{color:var(--down)}
+.buzzrow{display:grid;grid-template-columns:1fr 48px;gap:10px;align-items:center;margin:8px 0}
+.track{background:var(--line);border-radius:6px;height:8px;overflow:hidden;margin-top:4px}
+.fill{height:100%;background:var(--acc)}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{border-bottom:1px solid var(--line);padding:7px 8px;text-align:left}
+th{color:var(--mut);font-weight:600}
+td.num,th.num{text-align:right}
+.game{padding:6px 0;border-bottom:1px solid var(--line);cursor:pointer}
+.game:hover b{color:var(--acc)}
+.empty{color:var(--mut);font-size:14px}
 </style>
 </head>
 <body>
@@ -31,31 +43,39 @@ td,th{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}pre{wh
     <p>Track social activity for your favorite gacha games</p>
     <div class="bar">
       <select id="game"></select>
-      <select id="days"><option value="7">7d</option><option value="14">14d</option><option value="30">30d</option></select>
-      <input id="q" placeholder="Search games..." />
-      <button id="go">Load</button>
+      <select id="days">
+        <option value="7">7d</option>
+        <option value="14">14d</option>
+        <option value="30">30d</option>
+      </select>
+      <input id="q" placeholder="Filter games..." />
     </div>
+    <div class="bar" id="filters"></div>
+    <div class="status" id="status"></div>
   </div>
 
-  <h2>Activity Snapshot</h2>
+  <h2>Snapshot</h2>
   <div class="grid4">
-    <div class="card"><div class="mut">Total Views</div><div class="big" id="sViews">–</div><div class="mut" id="sViewsD"></div></div>
-    <div class="card"><div class="mut">Total Likes</div><div class="big" id="sLikes">–</div><div class="mut" id="sLikesD"></div></div>
-    <div class="card"><div class="mut">Biggest Buzz ↑</div><div class="big" id="sBuzzUp">–</div><div class="mut" id="sBuzzUpD"></div></div>
-    <div class="card"><div class="mut">Most Active Platform</div><div class="big" id="sPlat">–</div><div class="mut" id="sPlatD"></div></div>
+    <div class="card"><div class="mut">Views</div><div class="big" id="sViews">–</div><div class="mut" id="sViewsD"></div></div>
+    <div class="card"><div class="mut">Likes</div><div class="big" id="sLikes">–</div><div class="mut" id="sLikesD"></div></div>
+    <div class="card"><div class="mut">Engagement rate</div><div class="big" id="sEng">–</div><div class="mut" id="sEngD"></div></div>
+    <div class="card"><div class="mut">Most active platform</div><div class="big" id="sPlat">–</div><div class="mut" id="sPlatD"></div></div>
   </div>
-
-  <h2>Games</h2>
-  <div class="grid3" id="games"></div>
 
   <h2>Trend</h2>
-  <div class="card"><canvas id="chart" height="120"></canvas></div>
+  <div class="card">
+    <canvas id="chart" height="110"></canvas>
+    <div class="empty" id="chartEmpty" style="display:none">No data in this window.</div>
+  </div>
 
   <div class="grid3">
-    <div class="card"><h3>Word buzz</h3><pre id="buzz"></pre></div>
-    <div class="card"><h3>By platform</h3><pre id="plats"></pre></div>
-    <div class="card"><h3>Latest</h3><pre id="raw"></pre></div>
+    <div class="card"><h3>Word buzz</h3><div id="buzz"></div></div>
+    <div class="card"><h3>Platforms</h3><div id="plats"></div></div>
+    <div class="card"><h3>Games</h3><div id="games"></div></div>
   </div>
+
+  <h2>Top posts</h2>
+  <div class="card" id="posts"></div>
 </div>
 <script src="/dashboard.js" type="module"></script>
 </body>
