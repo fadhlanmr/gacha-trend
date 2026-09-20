@@ -53,7 +53,7 @@ For local dev, copy `api/.dev.vars.example` to `api/.dev.vars` (gitignored).
 
 | Platform | Status | Reason |
 |---|---|---|
-| YouTube | live (needs `YOUTUBE_API_KEY`) | free Data API v3 |
+| YouTube | live (needs `YOUTUBE_API_KEY`) | free Data API v3, Inspect -> search 'browse_id' |
 | Reddit | likely 403 | blocks datacenter IPs without OAuth; use homelab ingest |
 | Twitch | off (`ENABLE_TWITCH`) | needs free dev.twitch.tv app |
 | X | ingest-only | all free endpoints dead (fxtwitter/vx/syndication); no paid API |
