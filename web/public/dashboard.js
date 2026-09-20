@@ -236,9 +236,9 @@ function renderTopics(buzz) {
 function renderGames(filter = "") {
   const needle = filter.toLowerCase();
   const list = state.games.filter((g) => g.includes(needle) || (state.labels[g] ?? "").toLowerCase().includes(needle));
-  if (!list.length) return void ($("games").innerHTML = '<p class="empty">No games match that filter.</p>');
+  if (!list.length) return void ($("gameList").innerHTML = '<p class="empty">No games match that filter.</p>');
   const entries = list.map((g) => [g, state.gameTotals[g] || 0]).sort((a, b) => b[1] - a[1]);
-  $("games").innerHTML = entries.map(([g, v]) => {
+  $("gameList").innerHTML = entries.map(([g, v]) => {
     const plats = (state.gamePlats[g] ?? []).map((p) => `<span class="mark" style="background:${platColor(p)}" title="${esc(platName(p))}"></span>`).join(" ");
     return `<button class="grow" data-game="${esc(g)}">
       <span><span class="gname">${esc(state.labels[g] ?? g)}</span><span class="gsub">${plats ? plats : "No platforms yet"}</span></span>
@@ -246,7 +246,7 @@ function renderGames(filter = "") {
       <span class="gv" style="text-align:right"><strong>${fmtFull(v)}</strong><span class="gsub">views tracked</span></span>
     </button>`;
   }).join("");
-  $("games").querySelectorAll(".grow").forEach((el) => {
+  $("gameList").querySelectorAll(".grow").forEach((el) => {
     el.onclick = () => { $("game").value = el.dataset.game; load(); };
   });
 }
@@ -255,13 +255,13 @@ function renderPosts() {
   const list = state.posts.filter((p) => state.platform === "all" || p.platform === state.platform).slice(0, 5);
   $("postsNote").textContent = list.length ? "Top 5 by views" : "";
   if (!list.length) {
-    $("posts").innerHTML = '<p class="empty">No posts in this window.</p>';
+    $("postList").innerHTML = '<p class="empty">No posts in this window.</p>';
     return;
   }
   const media = (p) => (p.platform === "youtube" && p.post_id
     ? `<div class="pthumb"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${esc(p.post_id)}/hqdefault.jpg" onerror="this.style.display='none'"></div>`
     : `<div class="pthumb ph" style="--c:${platColor(p.platform)}">${platMark(p.platform)}</div>`);
-  $("posts").innerHTML = list.map((p) => `
+  $("postList").innerHTML = list.map((p) => `
     <a class="postcard" href="${esc(p.url)}" target="_blank" rel="noopener">
       ${media(p)}
       <div class="pbody">
