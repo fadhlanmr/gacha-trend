@@ -132,24 +132,34 @@ section{margin-bottom:40px;scroll-margin-top:24px}
 .gspark{width:96px}
 
 /* ---------- posts ---------- */
-.postgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(256px,1fr));gap:16px}
-.postcard{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden}
+.postgrid{display:flex;flex-direction:column;gap:14px}
+.postcard{display:grid;grid-template-columns:280px 1fr;min-height:150px;
+  background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden}
 .postcard:hover{border-color:var(--ink)}
-.postcard.feat{grid-column:span 2}
-@media(max-width:700px){.postcard.feat{grid-column:span 1}}
-.pthumb{display:block;aspect-ratio:16/9;background:var(--rule);overflow:hidden}
-.pthumb img{width:100%;height:100%;object-fit:cover;display:block}
-.pthumb.ph{display:grid;place-items:center;background:var(--hover)}
-.pthumb.ph svg{width:32px;height:32px;fill:currentColor;opacity:.55}
-.pbody{display:flex;flex-direction:column;gap:9px;padding:13px 15px 15px;flex:1}
-.ptitle{font-family:var(--font-display);font-size:14px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
-.postcard.feat .ptitle{font-size:17px;-webkit-line-clamp:2}
+/* the image fades out into the card, so the text column reads on plain background */
+.pthumb{position:relative;overflow:hidden;background:transparent;
+  -webkit-mask-image:linear-gradient(90deg,#000 34%,transparent 84%);
+  mask-image:linear-gradient(90deg,#000 34%,transparent 84%)}
+.pthumb img{width:100%;height:100%;object-fit:cover;object-position:left center;display:block}
+.pthumb.ph{display:grid;place-items:center;color:var(--c,var(--mut));background:var(--hover)}
+.pthumb.ph svg{width:34px;height:34px;fill:currentColor;opacity:.5}
+.pbody{display:flex;flex-direction:column;gap:10px;padding:16px 22px 16px 2px}
+.ptitle{font-family:var(--font-display);font-size:16px;font-weight:500;line-height:1.3;max-width:70ch;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .postcard:hover .ptitle{text-decoration:underline;text-underline-offset:3px}
-.pmeta2{display:flex;align-items:center;gap:7px;color:var(--mut);font-size:11.5px}
-.pstats{display:flex;gap:20px;margin:auto 0 0;padding-top:11px;border-top:1px solid var(--rule)}
+.pmeta2{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:12px}
+.pstats{display:flex;gap:34px;margin:auto 0 0;padding-top:12px;border-top:1px solid var(--rule)}
 .pstats>div{display:flex;flex-direction:column;gap:1px}
 .pstats .k{color:var(--mut);font-size:11px}
-.pstats .n{font-size:15px;font-weight:600;letter-spacing:-.015em}
+.pstats .n{font-size:16px;font-weight:600;letter-spacing:-.015em}
+@media(max-width:900px){.postcard{grid-template-columns:210px 1fr}.pbody{padding-right:16px}}
+@media(max-width:620px){
+  .postcard{grid-template-columns:1fr;min-height:0}
+  .pthumb{aspect-ratio:16/9;-webkit-mask-image:linear-gradient(180deg,#000 58%,transparent 100%);mask-image:linear-gradient(180deg,#000 58%,transparent 100%)}
+  .pbody{padding:0 16px 16px;gap:9px}
+  .ptitle{font-size:15px}
+  .pstats{gap:24px}
+}
 .mark{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
 .empty{color:var(--mut);font-size:13px;padding:10px 0}
 
@@ -246,8 +256,8 @@ footer{border-top:1px solid var(--rule);margin-top:8px;padding-top:18px;color:va
       <span class="note" id="postsNote"></span>
     </div>
     <div class="postgrid" id="posts">
-      <div class="postcard"><span class="sk row"></span></div>
-      <div class="postcard"><span class="sk row"></span></div>
+      <span class="sk" style="height:150px"></span>
+      <span class="sk" style="height:150px"></span>
     </div>
   </section>
 

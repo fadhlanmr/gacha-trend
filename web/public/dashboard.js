@@ -252,17 +252,17 @@ function renderGames(filter = "") {
 }
 
 function renderPosts() {
-  const list = state.posts.filter((p) => state.platform === "all" || p.platform === state.platform);
-  $("postsNote").textContent = list.length ? `${list.length} posts, most viewed first` : "";
+  const list = state.posts.filter((p) => state.platform === "all" || p.platform === state.platform).slice(0, 5);
+  $("postsNote").textContent = list.length ? "Top 5 by views" : "";
   if (!list.length) {
     $("posts").innerHTML = '<p class="empty">No posts in this window.</p>';
     return;
   }
   const media = (p) => (p.platform === "youtube" && p.post_id
     ? `<div class="pthumb"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${esc(p.post_id)}/hqdefault.jpg" onerror="this.style.display='none'"></div>`
-    : `<div class="pthumb ph" style="color:${platColor(p.platform)}">${platMark(p.platform)}</div>`);
-  $("posts").innerHTML = list.map((p, i) => `
-    <a class="postcard${i === 0 ? " feat" : ""}" href="${esc(p.url)}" target="_blank" rel="noopener">
+    : `<div class="pthumb ph" style="--c:${platColor(p.platform)}">${platMark(p.platform)}</div>`);
+  $("posts").innerHTML = list.map((p) => `
+    <a class="postcard" href="${esc(p.url)}" target="_blank" rel="noopener">
       ${media(p)}
       <div class="pbody">
         <div class="ptitle">${esc(p.title || p.post_id)}</div>
@@ -300,7 +300,7 @@ async function load() {
     const win = Math.min(days * 2, 90);
     const [trend, posts] = await Promise.all([
       j(`/api/trend?game=${game}&days=${win}`),
-      j(`/api/posts?game=${game}&days=${win}&limit=12`).catch(() => ({ rows: [] })),
+      j(`/api/posts?game=${game}&days=${win}&limit=5`).catch(() => ({ rows: [] })),
     ]);
     state.allRows = trend.rows ?? [];
     state.buzz = trend.buzz;
