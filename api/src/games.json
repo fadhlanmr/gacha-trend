@@ -6,5 +6,29 @@
     "subreddits": ["Genshin_Impact"],
     "twitch_game_id": "513143",
     "x_handles": ["GenshinImpact"]
+  },
+  "honkai-star-rail": {
+    "label": "Honkai: Star Rail",
+    "keywords": ["Honkai Star Rail", "Honkai: Star Rail", "#honkaistarrail", "HoYoverse"],
+    "youtube_channel_ids": ["UC2PeMPA8PAOp-bynLoCeMLA"],
+    "subreddits": ["HonkaiStarRail"],
+    "twitch_game_id": null,
+    "x_handles": ["honkaistarrail"]
+  },
+  "zenless-zone-zero": {
+    "label": "Zenless Zone Zero",
+    "keywords": ["Zenless Zone Zero", "#zenlesszonezero", "HoYoverse"],
+    "youtube_channel_ids": ["UC7JVpBCT3Ckki9JuDgePzTw"],
+    "subreddits": ["ZenlessZoneZero"],
+    "twitch_game_id": null,
+    "x_handles": ["ZZZ_EN"]
+  },
+  "wuthering-waves": {
+    "label": "Wuthering Waves",
+    "keywords": ["Wuthering Waves", "#wutheringwaves", "Kuro Games"],
+    "youtube_channel_ids": ["UC0Bi5KMcECRVYis5Gb_ZYZQ"],
+    "subreddits": ["WutheringWaves"],
+    "twitch_game_id": null,
+    "x_handles": ["Wuthering_Waves"]
   }
 }

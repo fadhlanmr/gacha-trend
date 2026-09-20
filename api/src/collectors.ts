@@ -123,3 +123,35 @@ export async function collectAll(slug: string, env: Env): Promise<CollectResult>
   const counts = { youtube: yt.length, reddit: rd.length, twitch: tw.length, x: x.length };
   return { source: "cloudflare", metrics: [...yt, ...rd, ...tw, ...x], counts };
 }
+
+export interface ChannelMeta {
+  id: string; title: string; avatar: string;
+  subscribers: number; videos: number; views: number; url: string;
+}
+
+// Channel-level stats for the game hero (1 quota unit per channel).
+export async function getChannelMeta(game: GameConfig, env: Env): Promise<ChannelMeta[]> {
+  if (!env.YOUTUBE_API_KEY || game.youtube_channel_ids.length === 0) return [];
+  const out: ChannelMeta[] = [];
+  for (const id of game.youtube_channel_ids) {
+    try {
+      const r = await fetch(
+        `https://www.googleapis.com/youtube/v3/channels?part=snippet,statistics&id=${id}&key=${env.YOUTUBE_API_KEY}`
+      );
+      if (!r.ok) continue;
+      const it = ((await r.json()) as any).items?.[0];
+      if (!it) continue;
+      const th = it.snippet?.thumbnails ?? {};
+      out.push({
+        id,
+        title: it.snippet?.title ?? id,
+        avatar: th.high?.url ?? th.medium?.url ?? th.default?.url ?? "",
+        subscribers: num(it.statistics?.subscriberCount),
+        videos: num(it.statistics?.videoCount),
+        views: num(it.statistics?.viewCount),
+        url: `https://youtube.com/channel/${id}`,
+      });
+    } catch { /* best-effort */ }
+  }
+  return out;
+}

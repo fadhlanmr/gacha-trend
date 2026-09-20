@@ -9,13 +9,13 @@ export async function saveMetrics(
   if (metrics.length === 0) return 0;
   const now = new Date().toISOString();
   const stmt = db.prepare(
-    `INSERT INTO snapshots (game, platform, post_id, url, title, views, likes, comments, shares, source, captured_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO snapshots (game, platform, post_id, url, title, views, likes, comments, shares, source, published_at, captured_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const batch = metrics.map((m) =>
     stmt.bind(
       game, m.platform, m.post_id, m.url, m.title.slice(0, 500),
-      m.views, m.likes, m.comments, m.shares, source, now
+      m.views, m.likes, m.comments, m.shares, source, m.published_at ?? null, now
     )
   );
   await db.batch(batch);
@@ -76,10 +76,45 @@ export async function getBuzz(db: D1Database, game: string, days: number, keywor
 // the other bare columns come from the row that produced that max.
 export async function getTopPosts(db: D1Database, game: string, days: number, limit: number) {
   const { results } = await db.prepare(
-    `SELECT platform, post_id, url, title, views, likes, comments, shares, source,
+    `SELECT platform, post_id, url, title, views, likes, comments, shares, source, published_at,
        MAX(captured_at) AS captured_at
      FROM snapshots WHERE game = ? AND captured_at >= datetime('now', ?)
      GROUP BY platform, post_id ORDER BY views DESC LIMIT ?`
+  ).bind(game, `-${days} days`, limit).all();
+  return results;
+}
+
+// View/like gain per post between its two most recent captures (top movers).
+export async function getMovers(db: D1Database, game: string, days: number, limit: number) {
+  const { results } = await db.prepare(
+    `WITH ranked AS (
+       SELECT platform, post_id, url, title, views, likes, captured_at,
+         ROW_NUMBER() OVER (PARTITION BY platform, post_id ORDER BY captured_at DESC) AS rn
+       FROM snapshots WHERE game = ? AND captured_at >= datetime('now', ?)
+     )
+     SELECT c.platform, c.post_id, c.url, c.title, c.views, c.likes,
+            c.views - p.views AS views_gained,
+            c.likes - p.likes AS likes_gained,
+            c.captured_at
+     FROM ranked c
+     JOIN ranked p ON p.platform = c.platform AND p.post_id = c.post_id AND p.rn = 2
+     WHERE c.rn = 1
+     ORDER BY views_gained DESC LIMIT ?`
+  ).bind(game, `-${days} days`, limit).all();
+  return results;
+}
+
+// Newest published posts, using the latest capture per post.
+export async function getLatestUploads(db: D1Database, game: string, days: number, limit: number) {
+  const { results } = await db.prepare(
+    `WITH ranked AS (
+       SELECT platform, post_id, url, title, views, likes, comments, published_at, captured_at,
+         ROW_NUMBER() OVER (PARTITION BY platform, post_id ORDER BY captured_at DESC) AS rn
+       FROM snapshots WHERE game = ? AND captured_at >= datetime('now', ?)
+     )
+     SELECT platform, post_id, url, title, views, likes, comments, published_at
+     FROM ranked WHERE rn = 1 AND published_at IS NOT NULL
+     ORDER BY published_at DESC LIMIT ?`
   ).bind(game, `-${days} days`, limit).all();
   return results;
 }

@@ -3,230 +3,258 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Gacha Social Trend</title>
+<title>Gacha Trend — social activity</title>
+<meta name="description" content="Views, likes, comments and trending topics for gacha games, across every platform, updated daily." />
+<meta name="theme-color" content="#EFF1F5" />
+<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="Gacha Trend" />
+<meta property="og:description" content="Views, likes, comments and trending topics for gacha games, across every platform, updated daily." />
+<meta name="twitter:card" content="summary" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap" />
 <script is:inline>
   (() => {
     const saved = localStorage.getItem("theme");
-    const light = saved ? saved === "light" : matchMedia("(prefers-color-scheme: light)").matches;
-    document.documentElement.classList.toggle("light", light);
+    const dark = saved ? saved === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
+    document.documentElement.classList.toggle("dark", dark);
   })();
 </script>
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<style>
+<script is:inline src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style is:global>
+/* ---------- tokens ---------- */
 :root{
-  --bg:#0b0d12;--card:#141821;--card2:#1a1f2b;--line:#242b38;--txt:#e8eaf0;--mut:#8b94a7;
-  --acc:#7c6cf0;--acc2:#22d3ee;--up:#4ade80;--down:#f87171;--hover:rgba(255,255,255,.045);
-  --shadow:0 1px 2px rgba(0,0,0,.35),0 8px 24px -18px rgba(0,0,0,.6);
+  --paper:#EFF1F5; --card:#FFFFFF; --ink:#161920; --mut:#606875; --rule:#D9DDE5;
+  --up:#1F7A4D; --down:#A63B2E; --hover:rgba(20,22,28,.045);
+  --accent:#161920; --radius:6px;
+  --font-ui:"Nunito Sans",system-ui,-apple-system,sans-serif;
+  --font-display:Outfit,system-ui,-apple-system,sans-serif;
 }
-html.light{
-  --bg:#f4f5f9;--card:#ffffff;--card2:#f8f9fc;--line:#e6e9f0;--txt:#111827;--mut:#5b6473;
-  --acc:#6a5ae0;--acc2:#0891b2;--up:#15803d;--down:#dc2626;--hover:rgba(17,24,39,.04);
-  --shadow:0 1px 2px rgba(16,24,40,.06),0 8px 24px -18px rgba(16,24,40,.25);
+html.dark{
+  --paper:#14161C; --card:#1B1E26; --ink:#ECEEF3; --mut:#96A0AF; --rule:#2A2F3A;
+  --up:#4FBE86; --down:#E0715F; --hover:rgba(255,255,255,.05);
+  --accent:#ECEEF3;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--txt);line-height:1.45;
-  font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;transition:background .2s,color .2s}
-a{color:inherit}
-.mut{color:var(--mut)}
-.mono,.val,.row-val,td.num,th.num{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-variant-numeric:tabular-nums}
-
-.top{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line)}
-@supports (background:color-mix(in srgb,red 50%,blue)){
-  .top{background:color-mix(in srgb,var(--bg) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px)}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--font-ui);
+  font-size:14px;line-height:1.55;
+  font-variant-numeric:tabular-nums;
 }
-.top-in{max-width:1320px;margin:0 auto;padding:0 24px;height:60px;display:flex;align-items:center;gap:12px}
-.brand{display:flex;align-items:center;gap:9px;font-weight:700;letter-spacing:2px;font-size:13.5px}
-.brand i{width:10px;height:10px;border-radius:50%;background:linear-gradient(135deg,var(--acc),var(--acc2));display:block;box-shadow:0 0 12px var(--acc)}
-.ghost{margin-left:auto;background:transparent;color:var(--txt);border:1px solid var(--line);border-radius:10px;width:36px;height:36px;font-size:15px;cursor:pointer;transition:border-color .15s,transform .15s}
-.ghost:hover{border-color:var(--acc);transform:translateY(-1px)}
+a{color:inherit;text-decoration:none}
+h1,h2,h3{font-family:var(--font-display);font-weight:600;letter-spacing:-.015em;margin:0}
+.cell .v,.pval,.tn,.gv strong,.pstats .n{font-family:var(--font-display);font-variant-numeric:tabular-nums}
+button,select,input{font:inherit;color:inherit}
+button{cursor:pointer;background:none;border:0}
+:where(button,select,input,a):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 
-.wrap{max-width:1320px;margin:0 auto;padding:30px 24px 60px}
-@media(max-width:680px){.top-in,.wrap{padding-left:16px;padding-right:16px}}
+/* ---------- header ---------- */
+.top{border-bottom:1px solid var(--rule);background:var(--paper)}
+.top-in{max-width:1180px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;gap:14px}
+.brand{font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-.015em}
+.brand em{font-style:normal;color:var(--mut)}
+.theme{margin-left:auto;border:1px solid var(--rule);border-radius:999px;width:32px;height:32px;line-height:1;color:var(--mut)}
+.theme:hover{color:var(--ink);border-color:var(--ink)}
 
-.hd{display:flex;align-items:baseline;gap:26px;flex-wrap:wrap;margin-bottom:22px}
-.hd h1{margin:0;font-size:22px;letter-spacing:-.02em}
-.hd .stats{display:flex;gap:22px;flex-wrap:wrap;color:var(--mut);font-size:13px}
-.hd .stats b{color:var(--txt);font-family:ui-monospace,monospace;font-variant-numeric:tabular-nums;margin-right:3px}
+/* ---------- layout ---------- */
+.wrap{max-width:1180px;margin:0 auto;padding:24px 28px 72px}
+@media(max-width:640px){.top-in,.wrap{padding-left:16px;padding-right:16px}}
 
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;background:var(--card);border:1px solid var(--line);
-  border-radius:14px;padding:12px 14px;margin-bottom:10px;box-shadow:var(--shadow)}
-select,input,button{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font:inherit;font-size:13.5px}
-button{cursor:pointer;transition:border-color .15s,color .15s,background .15s}
-button:hover{border-color:var(--acc)}
-button.on{border-color:var(--acc);color:var(--acc);background:color-mix(in srgb,var(--acc) 12%,transparent)}
-.status{color:var(--mut);font-size:12px;margin:0 2px 24px}
+.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--rule);margin-bottom:8px}
+select,.textinput{border:1px solid var(--rule);border-radius:var(--radius);background:var(--card);padding:7px 10px;font-size:13px}
+select:hover,.textinput:hover{border-color:var(--ink)}
+.status{display:flex;flex-wrap:wrap;gap:14px;color:var(--mut);font-size:12px;margin:10px 0 26px}
 
-section{margin-bottom:28px}
-.sec-hd{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin:0 2px 12px}
-.sec-hd h2{margin:0;font-size:15px;font-weight:600;letter-spacing:-.01em}
-.sec-hd .hint{color:var(--mut);font-size:12px}
+section{margin-bottom:40px;scroll-margin-top:24px}
+.sec-hd{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding-bottom:10px;border-bottom:1px solid var(--rule);margin-bottom:20px}
+.sec-hd h2{font-size:18px}
+.sec-hd .note{color:var(--mut);font-size:12px;display:flex;gap:14px;align-items:baseline}
+.linkish{color:var(--mut);text-decoration:underline;text-underline-offset:2px;font-size:12px}
+.linkish:hover{color:var(--ink)}
 
-.grid4{display:grid;grid-template-columns:repeat(4,1fr);gap:16px}
-.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;align-items:stretch}
-@media(max-width:940px){.grid4{grid-template-columns:1fr 1fr}.grid3{grid-template-columns:1fr}}
-@media(max-width:520px){.grid4{grid-template-columns:1fr}}
+/* ---------- summary ---------- */
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden}
+@media(max-width:860px){.summary{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:440px){.summary{grid-template-columns:1fr}}
+.cell{background:var(--card);padding:16px 18px}
+.cell .k{color:var(--mut);font-size:12px}
+.cell .v{font-size:27px;font-weight:600;letter-spacing:-.03em;font-stretch:95%;margin-top:6px;line-height:1.1}
+.cell .d{font-size:12px;margin-top:5px;color:var(--mut);min-height:16px}
+.up{color:var(--up)}.down{color:var(--down)}
 
-.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:18px 20px;box-shadow:var(--shadow)}
-.grid4 .card,.grid3 .card{height:100%}
-.card h3{margin:0;font-size:14px;font-weight:600}
+/* ---------- platform board ---------- */
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
+.ptile{display:block;text-align:left;background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);padding:15px 16px;border-top:3px solid var(--c)}
+.ptile:hover{border-color:var(--c)}
+.ptile[aria-pressed="true"]{box-shadow:inset 0 0 0 1px var(--c)}
+.ptop{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:500}
+.pmark{width:22px;height:22px;display:grid;place-items:center;color:var(--c);flex:none}
+.pmark svg{width:16px;height:16px;fill:currentColor}
+.pval{font-size:24px;font-weight:600;letter-spacing:-.03em;font-stretch:95%;margin-top:12px;line-height:1.1}
+.pmeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;color:var(--mut);margin-top:4px}
+.pbar{display:block;height:3px;background:var(--rule);border-radius:2px;margin-top:12px;overflow:hidden}
+.pbar i{display:block;height:100%;background:var(--c);border-radius:2px;transition:width .3s}
 
-/* --- stat cards --- */
-.stat{display:flex;flex-direction:column}
-.stat-top{display:flex;align-items:center;gap:9px;color:var(--mut);font-size:12px;font-weight:500}
-.ic{width:27px;height:27px;border-radius:9px;display:grid;place-items:center;flex:none;
-  background:var(--hover);color:var(--acc);border:1px solid var(--line)}
-.ic svg{width:15px;height:15px}
-.val{font-size:29px;font-weight:700;letter-spacing:-.025em;margin-top:10px}
-.stat-foot{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--mut);margin-top:3px;flex-wrap:wrap}
-.sparkwrap{margin-top:auto;padding-top:12px}
-.spark{width:100%;height:34px;display:block;overflow:visible}
+/* ---------- chart ---------- */
+.seg{display:inline-flex;border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden}
+.seg button{padding:5px 11px;font-size:12px;color:var(--mut);border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:0}
+.seg button[aria-pressed="true"]{color:var(--ink);background:var(--hover)}
+.chartbox{position:relative;height:300px}
+@media(max-width:640px){.chartbox{height:230px}}
 
-.dpill{display:inline-flex;align-items:center;gap:3px;padding:1px 7px;border-radius:999px;font-size:11px;font-weight:600}
-.dpill.up{background:color-mix(in srgb,var(--up) 16%,transparent);color:var(--up)}
-.dpill.down{background:color-mix(in srgb,var(--down) 16%,transparent);color:var(--down)}
-.dpill.flat{background:var(--hover);color:var(--mut);font-weight:500}
+/* ---------- topics ---------- */
+.topics{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.tcol{padding:0 26px}
+.tcol:first-child{padding-left:0}
+.tcol:last-child{padding-right:0;border-left:1px solid var(--rule)}
+@media(max-width:720px){.topics{grid-template-columns:1fr}.tcol{padding:0}.tcol:last-child{border-left:0;border-top:1px solid var(--rule);margin-top:18px;padding-top:18px}}
+.coltitle{color:var(--mut);font-size:12px;margin-bottom:12px}
+.trow{display:grid;grid-template-columns:1fr 44px;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid var(--rule)}
+.trow:last-child{border-bottom:0}
+.tname{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tbar{height:3px;background:var(--rule);border-radius:2px;margin-top:6px;overflow:hidden}
+.tbar i{display:block;height:100%;background:var(--ink);border-radius:2px}
+.tn{text-align:right;font-size:13px;font-weight:600}
 
-/* --- panel rows (shared by buzz / platforms / games) --- */
-.panel-hd{display:flex;align-items:center;gap:10px;margin-bottom:14px}
-.panel-hd h3{margin:0;font-size:14px;font-weight:600;line-height:1.2}
-.panel-hd .sub{display:block;color:var(--mut);font-size:11px;font-weight:400}
-.rows{display:flex;flex-direction:column;gap:1px}
-.row{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;
-  padding:8px 10px;margin:0 -10px;border-radius:10px;transition:background .15s}
-.row:hover{background:var(--hover)}
-.row.clickable{cursor:pointer}
-.row-name{font-size:13.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.row-val{text-align:right;font-size:13px;font-weight:600;line-height:1.25}
-.row-sub{display:block;font-size:10.5px;color:var(--mut);font-weight:500}
-.bar{height:5px;background:var(--line);border-radius:999px;overflow:hidden;margin-top:6px}
-.bar>i{display:block;height:100%;border-radius:999px;background:var(--acc);transition:width .45s ease}
-.pdot{width:9px;height:9px;border-radius:50%;flex:none;display:block}
-.avatar{width:28px;height:28px;border-radius:9px;display:grid;place-items:center;flex:none;font-size:10.5px;
-  font-weight:700;color:#fff;letter-spacing:.02em;background:linear-gradient(135deg,var(--a),var(--b))}
+/* ---------- games ---------- */
+.grow{display:grid;grid-template-columns:1fr 96px auto;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule);width:100%;text-align:left}
+.grow:last-child{border-bottom:0}
+.grow:hover .gname{text-decoration:underline;text-underline-offset:3px}
+@media(max-width:720px){.grow{grid-template-columns:1fr auto}.grow .gspark{display:none}}
+.gname{font-size:14px}
+.gsub{color:var(--mut);font-size:12px;margin-top:2px}
+.spark{display:block;width:100%;height:26px}
+.gspark{width:96px}
 
-.glabel{font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--mut);margin:0 0 8px;font-weight:600}
-.group+.group{margin-top:16px;padding-top:14px;border-top:1px solid var(--line)}
-.chips{display:flex;flex-wrap:wrap;gap:7px}
-.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;
-  background:var(--card2);border:1px solid var(--line);font-size:12px;transition:border-color .15s,transform .15s}
-.chip:hover{border-color:var(--acc);transform:translateY(-1px)}
-.chip b{font-family:ui-monospace,monospace;font-size:11px;color:var(--mut)}
+/* ---------- posts ---------- */
+.postgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(256px,1fr));gap:16px}
+.postcard{display:flex;flex-direction:column;background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden}
+.postcard:hover{border-color:var(--ink)}
+.postcard.feat{grid-column:span 2}
+@media(max-width:700px){.postcard.feat{grid-column:span 1}}
+.pthumb{display:block;aspect-ratio:16/9;background:var(--rule);overflow:hidden}
+.pthumb img{width:100%;height:100%;object-fit:cover;display:block}
+.pthumb.ph{display:grid;place-items:center;background:var(--hover)}
+.pthumb.ph svg{width:32px;height:32px;fill:currentColor;opacity:.55}
+.pbody{display:flex;flex-direction:column;gap:9px;padding:13px 15px 15px;flex:1}
+.ptitle{font-family:var(--font-display);font-size:14px;font-weight:500;line-height:1.35;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.postcard.feat .ptitle{font-size:17px;-webkit-line-clamp:2}
+.postcard:hover .ptitle{text-decoration:underline;text-underline-offset:3px}
+.pmeta2{display:flex;align-items:center;gap:7px;color:var(--mut);font-size:11.5px}
+.pstats{display:flex;gap:20px;margin:auto 0 0;padding-top:11px;border-top:1px solid var(--rule)}
+.pstats>div{display:flex;flex-direction:column;gap:1px}
+.pstats .k{color:var(--mut);font-size:11px}
+.pstats .n{font-size:15px;font-weight:600;letter-spacing:-.015em}
+.mark{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
+.empty{color:var(--mut);font-size:13px;padding:10px 0}
 
-/* --- chart --- */
-.chartbox{position:relative;height:280px}
-@media(max-width:640px){.chartbox{height:220px}}
-
-/* --- table --- */
-.tablewrap{overflow-x:auto}
-table{width:100%;border-collapse:collapse;font-size:13.5px}
-th,td{padding:11px 10px;text-align:left;border-bottom:1px solid var(--line)}
-th{color:var(--mut);font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;white-space:nowrap}
-tr:last-child td{border-bottom:none}
-tbody tr{transition:background .15s}
-tbody tr:hover{background:var(--hover)}
-td.num,th.num{text-align:right;white-space:nowrap}
-td a{text-decoration:none}
-td a:hover{color:var(--acc)}
-.rk{color:var(--mut);font-size:12px;text-align:right;width:28px}
-.ttitle{display:flex;align-items:center;gap:12px;min-width:260px}
-.ttitle a{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-width:560px}
-.thumb{width:56px;height:32px;border-radius:7px;object-fit:cover;background:var(--line);flex:none;display:block}
-.pill{display:inline-flex;align-items:center;gap:6px;padding:3px 9px;border-radius:999px;
-  background:var(--card2);border:1px solid var(--line);color:var(--mut);font-size:11px}
-.empty{color:var(--mut);font-size:13px;padding:8px 0}
-footer{max-width:1320px;margin:0 auto;padding:0 24px 36px;color:var(--mut);font-size:12px}
+/* ---------- loading ---------- */
+.sk{display:block;height:16px;border-radius:3px;background:var(--hover)}
+.sk.v{height:26px;width:60%;margin-top:8px}
+.sk.row{height:42px;margin:6px 0}
+footer{border-top:1px solid var(--rule);margin-top:8px;padding-top:18px;color:var(--mut);font-size:12px}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="top-in">
-    <div class="brand"><i></i> GACHA SOCIAL</div>
-    <button id="theme" class="ghost" aria-label="Toggle color theme">☾</button>
+    <div class="brand">Gacha Trend <em>/ social activity</em></div>
+    <button id="theme" class="theme" aria-label="Switch colour theme">☾</button>
   </div>
 </header>
 
 <main class="wrap">
-  <div class="hd">
-    <h1>Dashboard</h1>
-    <div class="stats">
-      <span><b id="hViews">–</b> tracked views</span>
-      <span><b id="hPosts">–</b> posts</span>
-      <span><b id="hGames">–</b> games</span>
-      <span><b id="hPlats">–</b> platforms</span>
-    </div>
-  </div>
-
   <div class="toolbar">
-    <select id="game"></select>
-    <select id="days">
+    <select id="game" aria-label="Game"></select>
+    <select id="days" aria-label="Time window">
       <option value="7">Last 7 days</option>
       <option value="14">Last 14 days</option>
       <option value="30">Last 30 days</option>
     </select>
-    <input id="q" placeholder="Filter games..." />
-    <div id="filters" style="display:flex;gap:8px;flex-wrap:wrap"></div>
   </div>
-  <p class="status" id="status">Loading…</p>
+  <p class="status" id="status" aria-live="polite">Loading…</p>
 
-  <section>
-    <div class="sec-hd"><h2>Snapshot</h2><span class="hint" id="snapHint"></span></div>
-    <div class="grid4">
-      <div class="card stat">
-        <div class="stat-top"><span class="ic" data-ic="views"></span>Views</div>
-        <div class="val" id="sViews">–</div>
-        <div class="stat-foot" id="sViewsD"></div>
-        <div class="sparkwrap" id="sViewsSpark"></div>
+  <section id="overview">
+    <div class="sec-hd">
+      <h2>Overview</h2>
+      <span class="note" id="overviewNote"></span>
+    </div>
+    <div class="summary" id="summary">
+      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
+      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
+      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
+      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
+      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
+    </div>
+
+    <div class="sec-hd" style="margin-top:34px">
+      <h2>Platforms</h2>
+      <span class="note"><span id="boardNote"></span><button class="linkish" id="clearPlat" hidden>Clear</button></span>
+    </div>
+    <div class="board" id="board">
+      <div class="ptile"><span class="sk row"></span></div>
+      <div class="ptile"><span class="sk row"></span></div>
+    </div>
+  </section>
+
+  <section id="activity">
+    <div class="sec-hd">
+      <h2>Activity</h2>
+      <div class="seg" id="chartMode">
+        <button data-m="platform" aria-pressed="true">By platform</button>
+        <button data-m="total" aria-pressed="false">Total</button>
+        <button data-m="gain" aria-pressed="false">Daily gain</button>
       </div>
-      <div class="card stat">
-        <div class="stat-top"><span class="ic" data-ic="likes"></span>Likes</div>
-        <div class="val" id="sLikes">–</div>
-        <div class="stat-foot" id="sLikesD"></div>
-        <div class="sparkwrap" id="sLikesSpark"></div>
+    </div>
+    <div class="chartbox"><canvas id="chart"></canvas></div>
+    <div class="empty" id="chartEmpty" hidden>Not enough captures yet — a second collection is needed before a trend line appears.</div>
+  </section>
+
+  <section id="topics">
+    <div class="sec-hd">
+      <h2>Topics</h2>
+      <span class="note" id="topicsNote"></span>
+    </div>
+    <div class="topics">
+      <div class="tcol">
+        <div class="coltitle">Keywords being tracked</div>
+        <div id="topicsKw"><span class="sk row"></span><span class="sk row"></span></div>
       </div>
-      <div class="card stat">
-        <div class="stat-top"><span class="ic" data-ic="eng"></span>Engagement rate</div>
-        <div class="val" id="sEng">–</div>
-        <div class="stat-foot" id="sEngD"></div>
-      </div>
-      <div class="card stat">
-        <div class="stat-top"><span class="ic" data-ic="plat"></span>Most active platform</div>
-        <div class="val" id="sPlat">–</div>
-        <div class="stat-foot" id="sPlatD"></div>
+      <div class="tcol">
+        <div class="coltitle">Hashtags in post titles</div>
+        <div id="topicsTags"><span class="sk row"></span></div>
       </div>
     </div>
   </section>
 
-  <section>
-    <div class="sec-hd"><h2>Trend</h2><span class="hint">daily gain: views (bars) · likes (line)</span></div>
-    <div class="card">
-      <div class="chartbox"><canvas id="chart"></canvas></div>
-      <div class="empty" id="chartEmpty" style="display:none">Not enough history to compute a daily gain yet.</div>
+  <section id="games">
+    <div class="sec-hd">
+      <h2>Games</h2>
+      <span class="note"><input id="q" class="textinput" placeholder="Filter games" aria-label="Filter games" /></span>
+    </div>
+    <div id="games"><span class="sk row"></span><span class="sk row"></span></div>
+  </section>
+
+  <section id="posts">
+    <div class="sec-hd">
+      <h2>Posts</h2>
+      <span class="note" id="postsNote"></span>
+    </div>
+    <div class="postgrid" id="posts">
+      <div class="postcard"><span class="sk row"></span></div>
+      <div class="postcard"><span class="sk row"></span></div>
     </div>
   </section>
 
-  <section>
-    <div class="grid3">
-      <div class="card">
-        <div class="panel-hd"><span class="ic" data-ic="buzz"></span><div><h3>Word buzz</h3><span class="sub">tracked keywords + top hashtags</span></div></div>
-        <div id="buzz"></div>
-      </div>
-      <div class="card">
-        <div class="panel-hd"><span class="ic" data-ic="plat"></span><div><h3>Platforms</h3><span class="sub">share of views in window</span></div></div>
-        <div id="plats"></div>
-      </div>
-      <div class="card">
-        <div class="panel-hd"><span class="ic" data-ic="game"></span><div><h3>Games</h3><span class="sub">7-day tracked views</span></div></div>
-        <div id="games"></div>
-      </div>
-    </div>
-  </section>
-
-  <section>
-    <div class="sec-hd"><h2>Top posts</h2><span class="hint" id="postsHint"></span></div>
-    <div class="card"><div class="tablewrap"><table id="posts"></table></div></div>
-  </section>
+  <footer>
+    Collected from official channels once a day at 06:00 UTC. Figures are estimates and may lag behind the live platform.
+  </footer>
 </main>
-<footer>Data collected from official channels; estimates may lag. Updated daily 06:00 UTC.</footer>
 <script src="/dashboard.js" type="module"></script>
 </body>
 </html>

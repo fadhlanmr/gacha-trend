@@ -1,12 +1,16 @@
 import { Hono } from "hono";
-import { collectAll, getGame, listGames } from "./collectors";
-import { getBuzz, getTopPosts, getTrend, saveMetrics } from "./db";
+import { collectAll, getChannelMeta, getGame, listGames } from "./collectors";
+import { getBuzz, getLatestUploads, getMovers, getTopPosts, getTrend, saveMetrics } from "./db";
 import { Env, Metric, num } from "./types";
 
 const app = new Hono<{ Bindings: Env }>();
 
 app.get("/api/health", (c) => c.json({ ok: true }));
-app.get("/api/games", (c) => c.json({ games: listGames() }));
+app.get("/api/games", (c) => {
+  const games = listGames();
+  const labels = Object.fromEntries(games.map((g) => [g, getGame(g)?.label ?? g]));
+  return c.json({ games, labels });
+});
 
 // Trend: aggregated views/likes/comments per day per platform.
 // Query: /api/trend?game=genshin-impact&days=7
@@ -31,6 +35,43 @@ app.get("/api/posts", async (c) => {
   if (!getGame(game)) return c.json({ error: "unknown game" }, 404);
   const rows = await getTopPosts(c.env.DB, game, days, limit);
   return c.json({ game, days, rows });
+});
+
+// Biggest gainers/losers between the two most recent captures.
+app.get("/api/movers", async (c) => {
+  const game = c.req.query("game") ?? "genshin-impact";
+  const days = Math.min(num(c.req.query("days")) || 30, 90);
+  const limit = Math.min(num(c.req.query("limit")) || 30, 100);
+  if (!getGame(game)) return c.json({ error: "unknown game" }, 404);
+  const rows = await getMovers(c.env.DB, game, days, limit);
+  return c.json({ game, days, rows });
+});
+
+// Newest uploads.
+app.get("/api/latest", async (c) => {
+  const game = c.req.query("game") ?? "genshin-impact";
+  const days = Math.min(num(c.req.query("days")) || 30, 90);
+  const limit = Math.min(num(c.req.query("limit")) || 5, 20);
+  if (!getGame(game)) return c.json({ error: "unknown game" }, 404);
+  const rows = await getLatestUploads(c.env.DB, game, days, limit);
+  return c.json({ game, days, rows });
+});
+
+// Game identity: configured keywords + YouTube channel stats (cached 6h).
+app.get("/api/game", async (c) => {
+  const game = c.req.query("game") ?? "genshin-impact";
+  const cfg = getGame(game);
+  if (!cfg) return c.json({ error: "unknown game" }, 404);
+  const key = new Request(`https://gacha-trend.internal/game/${game}`);
+  const hit = await caches.default.match(key);
+  if (hit) return hit;
+  const channels = await getChannelMeta(cfg, c.env);
+  const res = new Response(
+    JSON.stringify({ game, label: cfg.label, keywords: cfg.keywords, channels }),
+    { headers: { "content-type": "application/json", "cache-control": "max-age=21600" } }
+  );
+  c.executionCtx.waitUntil(caches.default.put(key, res.clone()));
+  return res;
 });
 
 // External ingest for homelab crawler. No Cloudflare crawl for tiktok/ig.
