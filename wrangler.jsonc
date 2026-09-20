@@ -5,9 +5,6 @@
   "compatibility_date": "2025-01-01",
   "assets": { "directory": "./web/dist" },
   "triggers": { "crons": ["0 6 * * *"] },
-  "vars": {
-    "INGEST_TOKEN": "liatapasich"
-  },
   "d1_databases": [
     {
       "binding": "DB",

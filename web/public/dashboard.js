@@ -7,7 +7,6 @@ const fmt = (n) => Intl.NumberFormat("en", { notation: "compact", maximumFractio
 const fmtFull = (n) => Intl.NumberFormat("en").format(n || 0);
 const fmtDate = (s) => new Date(s + "T00:00:00Z").toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" });
 const fmtStamp = (s) => (s ? new Date(s).toLocaleDateString("en", { month: "short", day: "numeric", timeZone: "UTC" }) : "");
-const iso = (d) => d.toISOString().slice(0, 10);
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const isDark = () => document.documentElement.classList.contains("dark");
 
@@ -36,7 +35,7 @@ const platMark = (p) => `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidde
 
 const state = {
   games: [], labels: {}, gameTotals: {}, gameSeries: {}, gamePlats: {},
-  allRows: [], posts: [], buzz: null, platform: "all", mid: "", days: 7, mode: "platform",
+  allRows: [], posts: [], buzz: null, platform: "all", days: 7, mode: "platform",
 };
 let chart;
 
@@ -127,10 +126,11 @@ function renderBoard() {
   if (!entries.length) return void ($("board").innerHTML = '<p class="empty">No platform data in this window.</p>');
   const stats = entries.map(([p, d]) => {
     const ds = Object.keys(d).sort();
-    const windowViews = ds.filter((x) => x >= state.mid).reduce((a, x) => a + d[x], 0);
-    const cur = ds.length ? d[ds.at(-1)] : 0;
+    // Cumulative snapshot, so take the latest capture — summing days would
+    // multiply the same views once per collection.
+    const views = ds.length ? d[ds.at(-1)] : 0;
     const prev = ds.length > 1 ? d[ds.at(-2)] : null;
-    return { p, views: windowViews, delta: prev === null ? null : cur - prev };
+    return { p, views, delta: prev === null ? null : views - prev };
   }).sort((a, b) => b.views - a.views);
   const total = stats.reduce((a, s) => a + s.views, 0) || 1;
   const max = Math.max(...stats.map((s) => s.views), 1);
@@ -204,7 +204,7 @@ function renderChart(dates, by, rows) {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: "index", intersect: false },
       plugins: {
-        legend: { labels: { color: ink, boxWidth: 9, boxHeight: 9, usePointStyle: true, pointStyle: "rectRounded", font: { family: "Archivo, system-ui, sans-serif", size: 12 } } },
+        legend: { labels: { color: ink, boxWidth: 9, boxHeight: 9, usePointStyle: true, pointStyle: "rectRounded", font: { family: "Nunito Sans, system-ui, sans-serif", size: 12 } } },
         tooltip: {
           backgroundColor: ink, titleColor: cssVar("--card"), bodyColor: cssVar("--card"),
           padding: 10, cornerRadius: 4, boxPadding: 4,
@@ -243,7 +243,7 @@ function renderGames(filter = "") {
     return `<button class="grow" data-game="${esc(g)}">
       <span><span class="gname">${esc(state.labels[g] ?? g)}</span><span class="gsub">${plats ? plats : "No platforms yet"}</span></span>
       <span class="gspark">${sparkline(state.gameSeries[g] || [], platColor((state.gamePlats[g] ?? [])[0] ?? "youtube") || cssVar("--ink"))}</span>
-      <span class="gv" style="text-align:right"><strong>${fmtFull(v)}</strong><span class="gsub">views, 7 days</span></span>
+      <span class="gv" style="text-align:right"><strong>${fmtFull(v)}</strong><span class="gsub">views tracked</span></span>
     </button>`;
   }).join("");
   $("games").querySelectorAll(".grow").forEach((el) => {
@@ -306,7 +306,6 @@ async function load() {
     state.buzz = trend.buzz;
     state.posts = posts.rows ?? [];
     state.days = days;
-    state.mid = iso(new Date(Date.now() - days * 864e5));
     state.platform = "all";
 
     const stamp = state.allRows.reduce((a, r) => (r.last_updated > a ? r.last_updated : a), "");
@@ -349,8 +348,9 @@ async function init() {
       const d = await j(`/api/trend?game=${g}&days=7`).catch(() => null);
       const rows = d?.rows ?? [];
       const { by, dates } = buildSeries(rows);
+      const last = dates.at(-1);
       return [g, {
-        total: rows.reduce((a, r) => a + r.views, 0),
+        total: last ? by[last].views : 0,
         series: dates.map((x) => by[x].views),
         plats: [...new Set(rows.map((r) => r.platform))],
       }];

@@ -36,16 +36,16 @@ Frontend change = rerun `npm run dev` (assets are built, not hot-reloaded).
 
 ## Secrets
 
-**Secrets are per-worker.** This project deploys as `gacha-trend`; set secrets on that worker.
+**Secrets are per-worker.** This project deploys as `gacha-trend`; set secrets on that worker. Nothing secret lives in `wrangler.jsonc`.
 
-Cloudflare dashboard → Workers & Pages → `gacha-trend` → Settings → Variables and Secrets → Add → type **Secret**:
-
-```
-YOUTUBE_API_KEY   # required for YouTube collection
-INGEST_TOKEN      # homelab push auth (also set as a plain var in wrangler.jsonc)
+```sh
+npx wrangler secret put YOUTUBE_API_KEY   # required for YouTube collection
+npx wrangler secret put INGEST_TOKEN      # bearer token for /api/ingest and /api/collect
 ```
 
-`INGEST_TOKEN` currently lives in `wrangler.jsonc` as a plaintext var so it survives redeploys. **Rotate it and move it to a Secret** — a var in the repo is visible to anyone with repo access.
+Generate the token with `openssl rand -hex 32` (or `-join ((48..57)+(97..122) | Get-Random -Count 40 | % {[char]$_})` in PowerShell). Secrets persist across deploys and are not readable back out — to rotate, run `secret put` again.
+
+The same two can be set in the Cloudflare dashboard → Workers & Pages → `gacha-trend` → Settings → Variables and Secrets → Add → type **Secret**.
 
 For local dev, copy `api/.dev.vars.example` to `api/.dev.vars` (gitignored).
 
@@ -82,7 +82,8 @@ Single object or array (max 500). Stored with `source='external'`.
 Edit `api/src/games.json` (one block per game, no code change), redeploy, then:
 
 ```sh
-curl -X POST "https://gacha-trend.<your-subdomain>.workers.dev/api/collect?game=<slug>"
+curl -X POST "https://gacha-trend.<your-subdomain>.workers.dev/api/collect?game=<slug>" \
+  -H "Authorization: Bearer $INGEST_TOKEN"
 ```
 
 ## Deploy to another Cloudflare organization
@@ -106,12 +107,14 @@ npx wrangler d1 create gacha-trend-db
 # 3. Schema + secrets
 npx wrangler d1 migrations apply gacha-trend-db --remote
 npx wrangler secret put YOUTUBE_API_KEY
+npx wrangler secret put INGEST_TOKEN
 
 # 4. Deploy
 npm run deploy
 
 # 5. Seed once (or wait for the 6am cron)
-curl -X POST "https://gacha-trend.<target-subdomain>.workers.dev/api/collect?game=genshin-impact"
+Invoke-RestMethod -Method Post -Uri "https://gacha-trend.<target-subdomain>.workers.dev/api/collect?game=genshin-impact" `
+  -Headers @{ Authorization = "Bearer <your-token>" }
 
 # 6. Stop targeting the wrong account
 Remove-Item Env:CLOUDFLARE_API_TOKEN, Env:CLOUDFLARE_ACCOUNT_ID

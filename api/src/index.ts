@@ -96,9 +96,13 @@ app.post("/api/ingest", async (c) => {
   return c.json({ ok: true, saved: n });
 });
 
-// Manual trigger (cron does this automatically).
-// POST /api/collect?game=genshin-impact
+// Manual trigger (cron does this automatically). Spends YouTube quota, so it
+// takes the same bearer token as /api/ingest.
+// POST /api/collect?game=genshin-impact  Header: Authorization: Bearer <INGEST_TOKEN>
 app.post("/api/collect", async (c) => {
+  if (!c.env.INGEST_TOKEN) return c.json({ error: "server missing INGEST_TOKEN" }, 500);
+  if (c.req.header("authorization") !== `Bearer ${c.env.INGEST_TOKEN}`)
+    return c.json({ error: "unauthorized" }, 401);
   const game = c.req.query("game") ?? "genshin-impact";
   if (!getGame(game)) return c.json({ error: "unknown game" }, 404);
   const { metrics, counts } = await collectAll(game, c.env);

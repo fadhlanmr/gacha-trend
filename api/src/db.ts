@@ -43,6 +43,10 @@ export async function getTrend(db: D1Database, game: string, days: number) {
 
 const HASHTAG = /#[\p{L}\p{N}_]+/gu;
 
+// Titles punctuate inconsistently ("Honkai: Star Rail" vs "Honkai Star Rail"),
+// so compare on letters/digits/# only. Keeps the hashtag marker meaningful.
+const norm = (s: string) => s.toLowerCase().replace(/[^\p{L}\p{N}#\s]+/gu, "").replace(/\s+/g, " ").trim();
+
 // Keyword counts + auto-discovered hashtags, deduped by post so repeated
 // collections do not inflate the numbers.
 export async function getBuzz(db: D1Database, game: string, days: number, keywords: string[], limit = 10) {
@@ -55,13 +59,16 @@ export async function getBuzz(db: D1Database, game: string, days: number, keywor
   ).bind(game, `-${days} days`).all<{ title: string }>();
 
   const counts: Record<string, number> = {};
-  for (const k of keywords) counts[k.toLowerCase()] = 0;
+  const keyed = keywords
+    .map((display) => ({ display, key: norm(display) }))
+    .filter((k) => k.key.length > 0);
+  for (const k of keyed) counts[k.display] = 0;
 
   const terms: Record<string, number> = {};
   for (const r of results ?? []) {
     const title = r.title ?? "";
-    const lower = title.toLowerCase();
-    for (const k of keywords) if (lower.includes(k.toLowerCase())) counts[k.toLowerCase()]++;
+    const nTitle = norm(title);
+    for (const k of keyed) if (nTitle.includes(k.key)) counts[k.display]++;
     for (const m of title.matchAll(HASHTAG)) {
       const tag = m[0].toLowerCase();
       terms[tag] = (terms[tag] ?? 0) + 1;
