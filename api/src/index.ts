@@ -26,7 +26,8 @@ app.get("/api/trend", async (c) => {
   return c.json({ game, days, rows, buzz });
 });
 
-// Top posts (latest capture per post), ranked by views.
+// Top posts (latest capture per post) ranked by views then likes, `limit` per
+// platform so the client can filter by platform without refetching.
 // Query: /api/posts?game=genshin-impact&days=7&limit=10
 app.get("/api/posts", async (c) => {
   const game = c.req.query("game") ?? "genshin-impact";

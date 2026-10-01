@@ -49,15 +49,37 @@ The same two can be set in the Cloudflare dashboard → Workers & Pages → `gac
 
 For local dev, copy `api/.dev.vars.example` to `api/.dev.vars` (gitignored).
 
-## Platform status (Cloudflare-side, verified 2026-09-19)
+## Platform status (Cloudflare-side, verified 2026-09-21)
 
 | Platform | Status | Reason |
 |---|---|---|
 | YouTube | live (needs `YOUTUBE_API_KEY`) | free Data API v3, Inspect -> search 'browse_id' |
-| Reddit | likely 403 | blocks datacenter IPs without OAuth; use homelab ingest |
+| X | live (`ENABLE_X`) | keyless syndication timeline; no view counts |
 | Twitch | off (`ENABLE_TWITCH`) | needs free dev.twitch.tv app |
-| X | ingest-only | all free endpoints dead (fxtwitter/vx/syndication); no paid API |
-| TikTok/IG | ingest-only | homelab push |
+| Reddit | blocked | JSON API 403s; the Atom feed works but carries no scores/comments |
+| TikTok / Instagram / Facebook | ingest-only | no keyless read API; push from the homelab |
+
+Platforms that report no view counts (X, Reddit) are handled by the dashboard:
+their tile leads with likes instead of views and they are left out of the
+"% of views" maths, and post cards show Likes/Replies/Reposts instead of
+Views/Likes/Comments.
+
+## X: on by default, unofficial (`ENABLE_X`)
+
+One request per handle to
+`https://syndication.twitter.com/srv/timeline-profile/screen-name/<handle>`
+returns the latest ~20 posts as JSON embedded in the page's `__NEXT_DATA__` script.
+No key, no paid tier.
+
+- **No view counts.** X does not expose impressions here, so `views` stays 0 and the
+  dashboard leads with likes for X. Retweets + quotes go into `shares` (shown as
+  "Reposts" on the post cards).
+- Thread replies are included, so a multi-post announcement counts as several posts.
+- Unofficial and can break without warning — set `ENABLE_X` to `"0"` in `wrangler.jsonc`
+  and redeploy to switch it off. On failure the collector returns nothing and the rest
+  of the run continues.
+- One request per handle per run, so rate limiting is not a practical concern at the
+  daily cron cadence.
 
 ## Twitch: OFF by default
 
@@ -67,7 +89,7 @@ No official keyless Twitch API exists — Helix needs a free `dev.twitch.tv` app
 - To enable later: add `TWITCH_CLIENT_ID` + `TWITCH_CLIENT_SECRET` secrets and `ENABLE_TWITCH=1` var, redeploy.
 - Or push Twitch numbers via `/api/ingest` with `"platform":"twitch"`.
 
-## Homelab push (TikTok/IG/Reddit/X)
+## Homelab push (TikTok/IG/Reddit)
 
 ```sh
 curl -X POST "https://gacha-trend.<your-subdomain>.workers.dev/api/ingest?game=genshin-impact" \

@@ -81,12 +81,14 @@ function buildSeries(rows) {
   return { by, dates: Object.keys(by).sort() };
 }
 
-// platform -> date -> views
-function platSeries(rows) {
+// platform -> date -> summed `key` (views, likes, ...)
+function series(rows, key) {
   const out = {};
-  for (const r of rows) ((out[r.platform] ??= {})[r.date] = (out[r.platform][r.date] || 0) + r.views);
+  for (const r of rows) ((out[r.platform] ??= {})[r.date] = (out[r.platform][r.date] || 0) + (r[key] || 0));
   return out;
 }
+const lastOf = (d) => { const ds = Object.keys(d || {}).sort(); return ds.length ? d[ds.at(-1)] : 0; };
+const prevOf = (d) => { const ds = Object.keys(d || {}).sort(); return ds.length > 1 ? d[ds.at(-2)] : null; };
 
 function setAccent() {
   const c = state.platform === "all" ? cssVar("--ink") : platColor(state.platform);
@@ -94,7 +96,7 @@ function setAccent() {
 }
 
 // ---------- renderers ----------
-function renderSummary(dates, by) {
+function renderSummary(dates, by, rows) {
   const last = dates.at(-1);
   if (!last) {
     $("summary").innerHTML = ["Views", "Likes", "Comments", "Engagement", "Posts"]
@@ -105,12 +107,17 @@ function renderSummary(dates, by) {
   const prev = dates.length > 1 ? by[dates.at(-2)] : null;
   const cur = by[last];
   const posts = state.buzz?.samples ?? 0;
-  const eng = cur.views ? ((cur.likes + cur.comments) / cur.views) * 100 : 0;
+  const hasViews = cur.views > 0;
+  // Engagement is a ratio, so it may only use rows that report views — mixing in
+  // a likes-only platform would divide its likes by another platform's views.
+  const vRows = rows.filter((r) => r.date === last && r.views > 0);
+  const vViews = vRows.reduce((a, r) => a + r.views, 0);
+  const eng = vViews ? (vRows.reduce((a, r) => a + r.likes + r.comments, 0) / vViews) * 100 : 0;
   const cells = [
-    ["Views", fmtFull(cur.views), prev ? cur.views - prev.views : null],
+    ["Views", hasViews ? fmtFull(cur.views) : "—", prev && hasViews ? cur.views - prev.views : null],
     ["Likes", fmtFull(cur.likes), prev ? cur.likes - prev.likes : null],
     ["Comments", fmtFull(cur.comments), prev ? cur.comments - prev.comments : null],
-    ["Engagement", eng.toFixed(2) + "%", null],
+    ["Engagement", vViews ? eng.toFixed(2) + "%" : "—", null],
     ["Posts tracked", fmtFull(posts), null],
   ];
   $("summary").innerHTML = cells.map(([k, v, d]) =>
@@ -121,26 +128,40 @@ function renderSummary(dates, by) {
 
 function renderBoard() {
   const rows = state.allRows;
-  const byP = platSeries(rows);
-  const entries = Object.entries(byP);
-  if (!entries.length) return void ($("board").innerHTML = '<p class="empty">No platform data in this window.</p>');
-  const stats = entries.map(([p, d]) => {
-    const ds = Object.keys(d).sort();
-    // Cumulative snapshot, so take the latest capture — summing days would
-    // multiply the same views once per collection.
-    const views = ds.length ? d[ds.at(-1)] : 0;
-    const prev = ds.length > 1 ? d[ds.at(-2)] : null;
-    return { p, views, delta: prev === null ? null : views - prev };
-  }).sort((a, b) => b.views - a.views);
-  const total = stats.reduce((a, s) => a + s.views, 0) || 1;
+  const viewsByP = series(rows, "views");
+  const likesByP = series(rows, "likes");
+  const commentsByP = series(rows, "comments");
+  const plats = [...new Set([...Object.keys(viewsByP), ...Object.keys(likesByP)])];
+  if (!plats.length) return void ($("board").innerHTML = '<p class="empty">No platform data in this window.</p>');
+  const stats = plats.map((p) => {
+    const views = lastOf(viewsByP[p]);
+    const prev = prevOf(viewsByP[p]);
+    return {
+      p, views,
+      likes: lastOf(likesByP[p]),
+      comments: lastOf(commentsByP[p]),
+      delta: prev === null ? null : views - prev,
+    };
+  }).sort((a, b) => b.views - a.views || b.likes - a.likes);
+  const total = stats.reduce((a, s) => a + s.views, 0);
   const max = Math.max(...stats.map((s) => s.views), 1);
-  $("board").innerHTML = stats.map((s) => `
+  $("board").innerHTML = stats.map((s) => {
+    // Some platforms (X, Reddit) report no view counts, so lead with likes.
+    const noViews = s.views === 0;
+    const value = noViews ? (s.likes ? fmtFull(s.likes) : "—") : fmtFull(s.views);
+    const unit = noViews ? (s.likes ? "likes" : "no view data") : "views";
+    const meta = noViews
+      ? `<span>${s.comments ? fmtFull(s.comments) + " replies" : "engagement only"}</span>`
+      : `${delta(s.delta)} <span>${total ? ((s.views / total) * 100).toFixed(0) : 0}% of views</span>`;
+    return `
     <button class="ptile" data-p="${esc(s.p)}" style="--c:${platColor(s.p)}" aria-pressed="${state.platform === s.p}">
       <span class="ptop"><span class="pmark">${platMark(s.p)}</span>${esc(platName(s.p))}</span>
-      <span class="pval">${fmtFull(s.views)}</span>
-      <span class="pmeta">${delta(s.delta)} <span>${((s.views / total) * 100).toFixed(0)}% of views</span></span>
-      <span class="pbar"><i style="width:${(s.views / max) * 100}%"></i></span>
-    </button>`).join("");
+      <span class="pval">${value}</span>
+      <span class="punit">${unit}</span>
+      <span class="pmeta">${meta}</span>
+      <span class="pbar"><i style="width:${noViews ? 0 : (s.views / max) * 100}%"></i></span>
+    </button>`;
+  }).join("");
   $("board").querySelectorAll(".ptile").forEach((el) => {
     el.onclick = () => {
       state.platform = state.platform === el.dataset.p ? "all" : el.dataset.p;
@@ -156,20 +177,33 @@ function renderBoard() {
 function renderChart(dates, by, rows) {
   if (chart) { chart.destroy(); chart = null; }
   const mode = state.mode;
-  const enough = mode === "total" ? dates.length >= 1 : dates.length > 1;
+  const viewsByP = series(rows, "views");
+  const withViews = Object.keys(viewsByP).filter((p) => Object.values(viewsByP[p]).some((v) => v > 0));
+  const withoutViews = Object.keys(viewsByP).filter((p) => !withViews.includes(p));
+
+  let enough = mode === "total" ? dates.length >= 1 : dates.length > 1;
+  if (mode === "platform" && withViews.length === 0) enough = false;
+
+  $("chartNote").textContent = withoutViews.length
+    ? `${withoutViews.map(platName).join(", ")} ${withoutViews.length > 1 ? "report" : "reports"} no view counts — see the platform tiles.`
+    : "";
   $("chartEmpty").hidden = enough;
-  if (!enough) return;
+  if (!enough) {
+    $("chartEmpty").textContent = mode === "platform" && withViews.length === 0
+      ? "No view counts in this selection — the platform tiles show likes instead."
+      : "Not enough captures yet — a second collection is needed before a trend line appears.";
+    return;
+  }
 
   const ink = cssVar("--ink"), mut = cssVar("--mut"), rule = cssVar("--rule");
   const ticks = { color: mut, callback: (v) => fmt(v) };
   let datasets = [], scales;
 
   if (mode === "platform") {
-    const byP = platSeries(rows);
-    datasets = Object.keys(byP).sort().map((p) => ({
+    datasets = withViews.sort().map((p) => ({
       type: "bar", label: platName(p), stack: "v", yAxisID: "y", borderRadius: 2, maxBarThickness: 46,
       backgroundColor: platColor(p),
-      data: dates.map((d, i) => (i === 0 ? 0 : Math.max(0, (byP[p][d] || 0) - (byP[p][dates[i - 1]] || 0)))),
+      data: dates.map((d, i) => (i === 0 ? 0 : Math.max(0, (viewsByP[p][d] || 0) - (viewsByP[p][dates[i - 1]] || 0)))),
     }));
     scales = {
       x: { stacked: true, ticks: { color: mut }, grid: { display: false }, border: { color: rule } },
@@ -253,11 +287,16 @@ function renderGames(filter = "") {
 
 function renderPosts() {
   const list = state.posts.filter((p) => state.platform === "all" || p.platform === state.platform).slice(0, 5);
-  $("postsNote").textContent = list.length ? "Top 5 by views" : "";
+  const byLikes = list.length > 0 && list.every((p) => !p.views);
+  $("postsNote").textContent = list.length ? (byLikes ? "Top 5 by likes" : "Top 5 by views") : "";
   if (!list.length) {
     $("postList").innerHTML = '<p class="empty">No posts in this window.</p>';
     return;
   }
+  // Platforms without view counts get their engagement stats instead.
+  const stats = (p) => (p.views
+    ? [["Views", fmtFull(p.views)], ["Likes", fmtFull(p.likes)], ["Comments", fmtFull(p.comments)]]
+    : [["Likes", fmtFull(p.likes)], ["Replies", fmtFull(p.comments)], ["Reposts", fmtFull(p.shares)]]);
   const media = (p) => (p.platform === "youtube" && p.post_id
     ? `<div class="pthumb"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${esc(p.post_id)}/hqdefault.jpg" onerror="this.style.display='none'"></div>`
     : `<div class="pthumb ph" style="--c:${platColor(p.platform)}">${platMark(p.platform)}</div>`);
@@ -272,9 +311,7 @@ function renderPosts() {
           <span>${p.published_at ? `Published ${fmtStamp(p.published_at)}` : `First seen ${fmtStamp(p.captured_at)}`}</span>
         </div>
         <div class="pstats">
-          <div><span class="k">Views</span><span class="n">${fmtFull(p.views)}</span></div>
-          <div><span class="k">Likes</span><span class="n">${fmtFull(p.likes)}</span></div>
-          <div><span class="k">Comments</span><span class="n">${fmtFull(p.comments)}</span></div>
+          ${stats(p).map(([k, v]) => `<div><span class="k">${k}</span><span class="n">${v}</span></div>`).join("")}
         </div>
       </div>
     </a>`).join("");
@@ -284,7 +321,7 @@ function renderAll() {
   const rows = state.allRows.filter((r) => state.platform === "all" || r.platform === state.platform);
   const { by, dates } = buildSeries(rows);
   setAccent();
-  renderSummary(dates, by);
+  renderSummary(dates, by, rows);
   renderBoard();
   renderChart(dates, by, rows);
   renderTopics(state.buzz);

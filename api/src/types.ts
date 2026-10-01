@@ -25,8 +25,9 @@ export interface Env {
   TWITCH_CLIENT_ID?: string;
   TWITCH_CLIENT_SECRET?: string;
   INGEST_TOKEN?: string;
-  // "1" / "true" = twitch collector on. Anything else (or unset) = off.
+  // "1" / "true" = collector on. Anything else (or unset) = off.
   ENABLE_TWITCH?: string;
+  ENABLE_X?: string;
 }
 
 export const num = (v: unknown): number => {

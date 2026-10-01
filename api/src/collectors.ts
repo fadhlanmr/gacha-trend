@@ -6,6 +6,14 @@ export const getGame = (slug: string): GameConfig | null =>
 
 export const listGames = (): string[] => Object.keys(games);
 
+const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36";
+
+// Feature flags are plain strings ("1" / "true" turns a collector on).
+const flagOn = (v: string | undefined): boolean => {
+  const s = (v ?? "").toLowerCase();
+  return s === "1" || s === "true";
+};
+
 // --- YouTube (free Data API v3). Needs YOUTUBE_API_KEY. ---
 async function collectYouTube(game: GameConfig, env: Env): Promise<Metric[]> {
   if (!env.YOUTUBE_API_KEY || game.youtube_channel_ids.length === 0) return [];
@@ -72,8 +80,7 @@ async function collectReddit(game: GameConfig): Promise<Metric[]> {
 // no official keyless endpoint, so keyless Cloudflare crawl is not offered.
 // Alternative: push twitch numbers from homelab via POST /api/ingest.) ---
 async function collectTwitch(game: GameConfig, env: Env): Promise<Metric[]> {
-  const flag = (env.ENABLE_TWITCH ?? "").toLowerCase();
-  if (flag !== "1" && flag !== "true") return [];
+  if (!flagOn(env.ENABLE_TWITCH)) return [];
   if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET || !game.twitch_game_id) return [];
   const t = await fetch("https://id.twitch.tv/oauth2/token", {
     method: "POST",
@@ -104,12 +111,42 @@ async function collectTwitch(game: GameConfig, env: Env): Promise<Metric[]> {
   }));
 }
 
-// --- X (ingest-only. No paid API per project rule; all free Cloudflare-side
-// endpoints are dead as of 2026-09: api.fxtwitter.com user timeline returns
-// "post doesn't exist", api.vxtwitter.com 404s, syndication timeline is empty.
-// Push X numbers from homelab via POST /api/ingest with "platform":"x".) ---
-async function collectX(_game: GameConfig): Promise<Metric[]> {
-  return [];
+// --- X (keyless syndication timeline. No API key, no paid tier.) ---
+// Unofficial and can break, hence ENABLE_X. X exposes no impressions through
+// this endpoint, so views stay 0 and the dashboard shows likes for X instead.
+// One request per handle returns the latest ~20 posts, thread replies included.
+async function collectX(game: GameConfig, env: Env): Promise<Metric[]> {
+  if (!flagOn(env.ENABLE_X) || game.x_handles.length === 0) return [];
+  const byId = new Map<string, Metric>();
+  for (const handle of game.x_handles) {
+    try {
+      const r = await fetch(
+        `https://syndication.twitter.com/srv/timeline-profile/screen-name/${encodeURIComponent(handle)}`,
+        { headers: { "user-agent": UA } }
+      );
+      if (!r.ok) continue;
+      const html = await r.text();
+      const raw = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/)?.[1];
+      if (!raw) continue;
+      const entries = JSON.parse(raw)?.props?.pageProps?.timeline?.entries ?? [];
+      for (const entry of entries) {
+        const tw = entry?.content?.tweet;
+        if (!tw?.id_str) continue;
+        byId.set(tw.id_str, {
+          platform: "x",
+          post_id: tw.id_str,
+          url: `https://x.com${tw.permalink ?? `/${handle}/status/${tw.id_str}`}`,
+          title: tw.full_text ?? "",
+          views: 0, // not exposed by syndication
+          likes: num(tw.favorite_count),
+          comments: num(tw.reply_count),
+          shares: num(tw.retweet_count) + num(tw.quote_count),
+          published_at: tw.created_at ? new Date(tw.created_at).toISOString() : null,
+        });
+      }
+    } catch { /* best-effort, same as the other collectors */ }
+  }
+  return [...byId.values()];
 }
 
 export interface CollectResult { source: string; metrics: Metric[]; counts: Record<string, number> }
@@ -118,7 +155,7 @@ export async function collectAll(slug: string, env: Env): Promise<CollectResult>
   const game = getGame(slug);
   if (!game) return { source: "cloudflare", metrics: [], counts: {} };
   const [yt, rd, tw, x] = await Promise.all([
-    collectYouTube(game, env), collectReddit(game), collectTwitch(game, env), collectX(game),
+    collectYouTube(game, env), collectReddit(game), collectTwitch(game, env), collectX(game, env),
   ]);
   const counts = { youtube: yt.length, reddit: rd.length, twitch: tw.length, x: x.length };
   return { source: "cloudflare", metrics: [...yt, ...rd, ...tw, ...x], counts };

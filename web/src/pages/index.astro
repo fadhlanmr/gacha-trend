@@ -70,7 +70,7 @@ select:hover,.textinput:hover{border-color:var(--ink)}
 .status{display:flex;flex-wrap:wrap;gap:14px;color:var(--mut);font-size:12px;margin:10px 0 26px}
 
 section{margin-bottom:40px;scroll-margin-top:24px}
-.sec-hd{display:flex;align-items:baseline;justify-content:space-between;gap:16px;padding-bottom:10px;border-bottom:1px solid var(--rule);margin-bottom:20px}
+.sec-hd{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--rule);margin-bottom:20px}
 .sec-hd h2{font-size:18px}
 .sec-hd .note{color:var(--mut);font-size:12px;display:flex;gap:14px;align-items:baseline}
 .linkish{color:var(--mut);text-decoration:underline;text-underline-offset:2px;font-size:12px}
@@ -95,6 +95,7 @@ section{margin-bottom:40px;scroll-margin-top:24px}
 .pmark{width:22px;height:22px;display:grid;place-items:center;color:var(--c);flex:none}
 .pmark svg{width:16px;height:16px;fill:currentColor}
 .pval{font-size:24px;font-weight:600;letter-spacing:-.03em;font-stretch:95%;margin-top:12px;line-height:1.1}
+.punit{display:block;color:var(--mut);font-size:11px;margin-top:3px}
 .pmeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;color:var(--mut);margin-top:4px}
 .pbar{display:block;height:3px;background:var(--rule);border-radius:2px;margin-top:12px;overflow:hidden}
 .pbar i{display:block;height:100%;background:var(--c);border-radius:2px;transition:width .3s}
@@ -215,6 +216,7 @@ footer{border-top:1px solid var(--rule);margin-top:8px;padding-top:18px;color:va
   <section id="activity">
     <div class="sec-hd">
       <h2>Activity</h2>
+      <span class="note" id="chartNote"></span>
       <div class="seg" id="chartMode">
         <button data-m="platform" aria-pressed="true">By platform</button>
         <button data-m="total" aria-pressed="false">Total</button>

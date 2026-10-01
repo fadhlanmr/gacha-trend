@@ -5,11 +5,16 @@
   "compatibility_date": "2025-01-01",
   "assets": { "directory": "./web/dist" },
   "triggers": { "crons": ["0 6 * * *"] },
+  "vars": {
+    // Non-secret feature flags: "1" on, "0" off. X uses an unofficial
+    // syndication endpoint — set to "0" if it starts failing.
+    "ENABLE_X": "1"
+  },
   "d1_databases": [
     {
       "binding": "DB",
       "database_name": "gacha-trend-db",
-      "database_id": "7ee45e27-ab8a-4991-b01e-6a21b25390c0",
+      // "database_id": "7ee45e27-ab8a-4991-b01e-6a21b25390c0",
       "migrations_dir": "api/migrations"
     }
   ],
