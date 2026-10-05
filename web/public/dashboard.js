@@ -69,20 +69,22 @@ function sparkline(values, color) {
   </svg>`;
 }
 
-const delta = (d, suffix = "vs previous capture") => {
-  if (d === null || d === undefined) return `<span style="color:var(--mut)">first capture</span>`;
-  if (d === 0) return `<span style="color:var(--mut)">no change</span>`;
-  return `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"} ${fmtFull(Math.abs(d))}</span> <span style="color:var(--mut)">${suffix}</span>`;
-};
-
 function buildSeries(rows) {
   const by = {};
-  for (const r of rows) {
-    const b = (by[r.date] ??= { views: 0, likes: 0, comments: 0, posts: 0 });
-    b.views += r.views; b.likes += r.likes; b.comments += r.comments;
-    b.posts += r.posts || 0;
+  const latest = {};
+  const dates = [...new Set(rows.map((r) => r.date))].sort();
+  for (const date of dates) {
+    const daily = rows.filter((r) => r.date === date);
+    for (const r of daily) latest[r.platform] = r;
+    by[date] = { views: 0, likes: 0, comments: 0, posts: 0, views_gained: 0, likes_gained: 0, comments_gained: 0 };
+    for (const r of Object.values(latest)) {
+      for (const key of ["views", "likes", "comments", "posts"]) by[date][key] += r[key] || 0;
+    }
+    for (const r of daily) {
+      for (const key of ["views_gained", "likes_gained", "comments_gained"]) by[date][key] += r[key] || 0;
+    }
   }
-  return { by, dates: Object.keys(by).sort() };
+  return { by, dates };
 }
 
 // platform -> date -> summed `key` (views, likes, ...)
@@ -91,79 +93,83 @@ function series(rows, key) {
   for (const r of rows) ((out[r.platform] ??= {})[r.date] = (out[r.platform][r.date] || 0) + (r[key] || 0));
   return out;
 }
-const lastOf = (d) => { const ds = Object.keys(d || {}).sort(); return ds.length ? d[ds.at(-1)] : 0; };
-const prevOf = (d) => { const ds = Object.keys(d || {}).sort(); return ds.length > 1 ? d[ds.at(-2)] : null; };
+function windowTotals(rows) {
+  const latest = {};
+  const result = { views: 0, likes: 0, comments: 0, posts: 0, unbaselined: 0, viewEngagement: 0, viewGains: 0, hasViews: false };
+  for (const r of rows) {
+    if (!latest[r.platform] || r.date > latest[r.platform].date) latest[r.platform] = r;
+    result.views += r.views_gained || 0;
+    result.likes += r.likes_gained || 0;
+    result.comments += r.comments_gained || 0;
+    if (r.views > 0) {
+      result.hasViews = true;
+      result.viewGains += r.views_gained || 0;
+      result.viewEngagement += (r.likes_gained || 0) + (r.comments_gained || 0);
+    }
+  }
+  for (const r of Object.values(latest)) {
+    result.posts += r.window_posts || 0;
+    result.unbaselined += r.unbaselined_posts || 0;
+  }
+  return result;
+}
 
 // ---------- renderers ----------
 function renderSummary(dates, by, rows) {
   const last = dates.at(-1);
   if (!last) {
-    $("summary").innerHTML = ["Views", "Likes", "Comments", "Engagement", "Posts tracked"]
+    $("summary").innerHTML = ["Views gained", "Likes gained", "Comments gained", "Engagement", "Posts tracked"]
       .map((k) => `<div class="cell"><div class="k">${k}</div><div class="v">–</div><div class="d"></div></div>`).join("");
-    $("overviewNote").textContent = "No captures in this window";
+    $("overviewNote").textContent = `No captures in the last ${state.days} days`;
     return;
   }
-  const prev = dates.length > 1 ? by[dates.at(-2)] : null;
-  const cur = by[last];
-  const posts = cur.posts;
-  const hasViews = cur.views > 0;
-  // Engagement is a ratio, so it may only use rows that report views — mixing in
-  // a likes-only platform would divide its likes by another platform's views.
-  const vRows = rows.filter((r) => r.date === last && r.views > 0);
-  const vViews = vRows.reduce((a, r) => a + r.views, 0);
-  const eng = vViews ? (vRows.reduce((a, r) => a + r.likes + r.comments, 0) / vViews) * 100 : 0;
+  const cur = windowTotals(rows);
+  const hasViews = cur.hasViews;
+  const eng = cur.viewGains > 0 && cur.viewEngagement >= 0 ? (cur.viewEngagement / cur.viewGains) * 100 : null;
   const cells = [
-    ["Views", hasViews ? fmtFull(cur.views) : "—", prev && hasViews ? cur.views - prev.views : null],
-    ["Likes", fmtFull(cur.likes), prev ? cur.likes - prev.likes : null],
-    ["Comments", fmtFull(cur.comments), prev ? cur.comments - prev.comments : null],
-    ["Engagement", vViews ? eng.toFixed(2) + "%" : "—", null],
-    ["Posts tracked", fmtFull(posts), null],
+    ["Views gained", hasViews ? fmtFull(cur.views) : "—"],
+    ["Likes gained", fmtFull(cur.likes)],
+    ["Comments gained", fmtFull(cur.comments)],
+    ["Engagement", eng === null ? "—" : eng.toFixed(2) + "%"],
+    ["Posts tracked", fmtFull(cur.posts)],
   ];
-  $("summary").innerHTML = cells.map(([k, v, d]) => {
-    const detail = k === "Engagement" ? "(Likes + comments) / views"
-      : k === "Posts tracked" ? "In the latest capture"
-      : k === "Views" && !hasViews ? "View counts unavailable"
-      : d === null ? "First capture in this window" : delta(d);
+  $("summary").innerHTML = cells.map(([k, v]) => {
+    const detail = k === "Engagement" ? "Gains on platforms reporting views"
+       : k === "Posts tracked" ? `Seen in the last ${state.days} days`
+       : k === "Views gained" && !hasViews ? "View counts unavailable"
+       : `Observed in the last ${state.days} days`;
     return `<div class="cell"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${detail}</div></div>`;
   }).join("");
-  $("overviewNote").textContent = `Latest capture ${fmtDate(last)}`;
+  $("overviewNote").textContent = `Last ${state.days} days · Through ${fmtDate(last)}${cur.unbaselined ? ` · ${cur.unbaselined} older posts lack a starting baseline` : ""}`;
 }
 
 function renderBoard() {
   const focusedPlatform = $("board").contains(document.activeElement) ? document.activeElement.dataset.p : null;
   const rows = state.allRows;
-  const viewsByP = series(rows, "views");
-  const likesByP = series(rows, "likes");
-  const plats = [...new Set([...Object.keys(viewsByP), ...Object.keys(likesByP)])];
+  const plats = [...new Set(rows.map((r) => r.platform))];
   $("boardNote").textContent = state.platform === "all" ? "Select a platform to filter activity and posts" : `Viewing ${platName(state.platform)}`;
   $("clearPlat").hidden = state.platform === "all";
   if (!plats.length) return void ($("board").innerHTML = '<p class="empty">No platform captures in this window. Try a longer time window or check back after the next daily collection.</p>');
   const stats = plats.map((p) => {
-    const views = lastOf(viewsByP[p]);
-    const prev = prevOf(viewsByP[p]);
-    return {
-      p, views,
-      likes: lastOf(likesByP[p]),
-      delta: prev === null ? null : views - prev,
-      likesDelta: prevOf(likesByP[p]) === null ? null : lastOf(likesByP[p]) - prevOf(likesByP[p]),
-    };
+    const totals = windowTotals(rows.filter((r) => r.platform === p));
+    return { p, ...totals };
   }).sort((a, b) => b.views - a.views || b.likes - a.likes);
   const total = stats.reduce((a, s) => a + s.views, 0);
   const max = Math.max(...stats.map((s) => s.views), 1);
   $("board").innerHTML = stats.map((s) => {
     // Some platforms (X, Reddit) report no view counts, so lead with likes.
-    const noViews = s.views === 0;
-    const value = noViews ? (s.likes ? fmtFull(s.likes) : "—") : fmtFull(s.views);
-    const unit = noViews ? (s.likes ? "likes" : "no view data") : "views";
+    const noViews = !s.hasViews;
+    const value = noViews ? fmtFull(s.likes) : fmtFull(s.views);
+    const unit = noViews ? "likes gained" : "views gained";
     const meta = noViews
-      ? `<span>${delta(s.likesDelta, "likes gained")}</span><span>Views unavailable</span>`
-      : `<span>${delta(s.delta)}</span><span>${total ? ((s.views / total) * 100).toFixed(0) : 0}% of views</span>`;
+      ? `<span>Last ${state.days} days</span><span>Views unavailable</span>`
+      : `<span>Last ${state.days} days</span><span>${total > 0 ? Math.max(0, (s.views / total) * 100).toFixed(0) : 0}% of net view gains</span>`;
     return `
     <button class="ptile" data-p="${esc(s.p)}" style="--c:${platColor(s.p)}" aria-pressed="${state.platform === s.p}">
       <span class="ptop"><span class="pmark">${platMark(s.p)}</span>${esc(platName(s.p))}${state.platform === s.p ? '<span class="platform-check" aria-hidden="true">✓</span>' : ""}</span>
       <span class="pvalue-line"><span class="pval">${value}</span><span class="punit">${unit}</span></span>
       <span class="pmeta">${meta}</span>
-      <span class="pbar"><i style="width:${noViews ? 0 : (s.views / max) * 100}%"></i></span>
+      <span class="pbar"><i style="width:${noViews ? 0 : Math.max(0, (s.views / max) * 100)}%"></i></span>
     </button>`;
   }).join("");
   $("board").querySelectorAll(".ptile").forEach((el) => {
@@ -179,15 +185,15 @@ function renderChart(dates, by, rows) {
   if (chart) { chart.destroy(); chart = null; }
   const mode = state.mode;
   $("chartDescription").textContent = {
-    platform: "View gains between daily captures, grouped by platform.",
-    total: "Captured totals. Views on the left axis; likes on the right.",
-    gain: "Change between captures. Views on the left axis; likes on the right.",
+    platform: "Observed view gains per post, grouped by platform. Gaps are attributed to the next capture; corrections may be negative.",
+    total: "Last-known totals for tracked posts. Missing posts retain their last capture. Views on the left axis; likes on the right.",
+    gain: "Observed gains per post. Views on the left axis; likes on the right. Missing history is not estimated.",
   }[mode];
   const viewsByP = series(rows, "views");
   const withViews = Object.keys(viewsByP).filter((p) => Object.values(viewsByP[p]).some((v) => v > 0));
   const withoutViews = Object.keys(viewsByP).filter((p) => !withViews.includes(p));
 
-  let enough = mode === "total" ? dates.length >= 1 : dates.length > 1;
+  let enough = mode === "total" ? dates.length >= 1 : dates.length > 1 || rows.some((r) => r.views_gained || r.likes_gained);
   if (mode === "platform" && withViews.length === 0) enough = false;
 
   $("chartNote").textContent = withoutViews.length
@@ -217,7 +223,7 @@ function renderChart(dates, by, rows) {
     datasets = withViews.sort().map((p) => ({
       type: "bar", label: platName(p), stack: "v", yAxisID: "y", borderRadius: 2, maxBarThickness: 46,
       backgroundColor: platColor(p),
-      data: dates.map((d, i) => (i === 0 || viewsByP[p][d] === undefined || viewsByP[p][dates[i - 1]] === undefined ? null : Math.max(0, viewsByP[p][d] - viewsByP[p][dates[i - 1]]))),
+      data: dates.map((d) => rows.find((r) => r.platform === p && r.date === d)?.views_gained ?? null),
     }));
     scales = {
       x: { stacked: true, ticks: { color: mut }, grid: { display: false }, border: { color: rule } },
@@ -234,7 +240,7 @@ function renderChart(dates, by, rows) {
       y1: { beginAtZero: true, position: "right", ticks, grid: { display: false }, border: { display: false } },
     };
   } else {
-    const gainOf = (m) => dates.map((d, i) => (i === 0 ? null : Math.max(0, by[d][m] - by[dates[i - 1]][m])));
+    const gainOf = (m) => dates.map((d) => by[d][`${m}_gained`]);
     datasets = [
       { type: "bar", label: "Views", yAxisID: "y", data: gainOf("views"), backgroundColor: ink, borderRadius: 2, maxBarThickness: 42 },
       { type: "line", label: "Likes", yAxisID: "y1", data: gainOf("likes"), borderColor: mut, backgroundColor: mut, tension: 0.35, pointRadius: 2, borderWidth: 1.5 },
@@ -295,7 +301,7 @@ function renderGames(filter = $("q").value) {
     return `<button class="grow" data-game="${esc(g)}" aria-current="${state.game === g}" aria-label="View ${esc(state.labels[g] ?? g)} dashboard">
       <span class="game-icon" aria-hidden="true">${esc(initials)}</span>
       <span><span class="gname">${esc(state.labels[g] ?? g)}</span><span class="gsub">${plats ? `${plats} <span>Official channels</span>` : "No captures yet"}</span></span>
-      <span class="gv"><strong title="${fmtFull(v)} views">${hasData ? fmt(v) : "—"}</strong>${sparkline(state.gameSeries[g] || [], cssVar("--brand"))}</span>
+      <span class="gv"><strong title="${fmtFull(v)} views gained in ${state.days} days">${hasData ? fmt(v) : "—"}</strong>${sparkline(state.gameSeries[g] || [], cssVar("--brand"))}</span>
     </button>`;
   }).join("");
   $("gameList").querySelectorAll(".grow").forEach((el) => {
@@ -384,12 +390,13 @@ async function load() {
   $("status").textContent = `Loading ${state.labels[game] ?? game} activity…`;
   try {
     const query = new URLSearchParams({ game, days: String(days) });
-    const [trend, posts] = await Promise.all([
+    const [trend, posts, comparison] = await Promise.all([
       j(`/api/trend?${query}`, signal),
       j(`/api/posts?${query}&limit=6`, signal).catch((e) => {
         if (e.name === "AbortError") throw e;
         return { rows: [], failed: true };
       }),
+      loadComparison(days, signal),
     ]);
     if (version !== loadVersion) return;
     if (state.game !== game) state.platform = "all";
@@ -401,6 +408,10 @@ async function load() {
     state.posts = posts.rows ?? [];
     state.postsError = Boolean(posts.failed);
     state.days = days;
+    state.gameTotals = Object.fromEntries(comparison.map(([g, o]) => [g, o.total]));
+    state.gameSeries = Object.fromEntries(comparison.map(([g, o]) => [g, o.series]));
+    state.gamePlats = Object.fromEntries(comparison.map(([g, o]) => [g, o.plats]));
+    $("gamesDescription").textContent = `Observed view gains in the last ${days} days`;
     const stamp = state.allRows.reduce((a, r) => (r.last_updated > a ? r.last_updated : a), "");
     $("status").dataset.state = "ready";
     $("status").innerHTML = [
@@ -441,22 +452,20 @@ function setTheme(dark) {
   if (state.game) renderAll();
 }
 
-async function loadComparison() {
-  const pairs = await Promise.all(state.games.map(async (g) => {
-    const d = await j(`/api/trend?game=${encodeURIComponent(g)}&days=7`).catch(() => null);
+async function loadComparison(days, signal) {
+  return Promise.all(state.games.map(async (g) => {
+    const d = await j(`/api/trend?game=${encodeURIComponent(g)}&days=${days}`, signal).catch((e) => {
+      if (e.name === "AbortError") throw e;
+      return null;
+    });
     const rows = d?.rows ?? [];
     const { by, dates } = buildSeries(rows);
-    const last = dates.at(-1);
     return [g, {
-      total: last ? by[last].views : 0,
-      series: dates.map((x) => by[x].views),
+      total: windowTotals(rows).views,
+      series: dates.map((x) => by[x].views_gained),
       plats: [...new Set(rows.map((r) => r.platform))],
     }];
   }));
-  state.gameTotals = Object.fromEntries(pairs.map(([g, o]) => [g, o.total]));
-  state.gameSeries = Object.fromEntries(pairs.map(([g, o]) => [g, o.series]));
-  state.gamePlats = Object.fromEntries(pairs.map(([g, o]) => [g, o.plats]));
-  renderGames();
 }
 
 async function init() {
@@ -477,8 +486,7 @@ async function init() {
       setLoading(false);
       return;
     }
-    // The selected dashboard can load without waiting for every other game.
-    await Promise.all([load(), loadComparison()]);
+    await load();
   } catch {
     $("game").innerHTML = '<option value="">Games unavailable</option>';
     $("game").disabled = true;
@@ -501,6 +509,6 @@ $("chartMode").querySelectorAll("button").forEach((b) => {
   };
 });
 $("clearPlat").onclick = () => { state.platform = "all"; renderAll(); };
-$("refresh").onclick = () => state.games.length ? Promise.all([load(), loadComparison()]) : init();
+$("refresh").onclick = () => state.games.length ? load() : init();
 $("retry").onclick = () => $("game").disabled ? init() : load();
 init();

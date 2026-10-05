@@ -8,6 +8,27 @@ Social-activity dashboard for gacha games. **One Cloudflare Worker**: Hono API +
 
 Non-asset paths run the Worker; `/` and `/dashboard.js` are served from assets. Same origin, so no CORS and no API URL config.
 
+## What the numbers mean
+
+- The time window is the last **N UTC calendar days including today**. At a glance,
+  platform tiles, daily gains and Across games all use that same window.
+- Views/likes/comments gained are **per-post observed changes**, using the last
+  capture before the window as the baseline. A newly published post in the window
+  starts from zero; an older post without history starts at its first observed
+  count. Its earlier growth is unknown, and the summary notes missing baselines.
+- Totals retain each post's last-known count if it leaves a feed or a collection
+  fails. They are totals for tracked posts, not the entire channel's lifetime views.
+- Gaps are attributed to the next successful capture, not interpolated. Real
+  count corrections can produce negative gains. Historical views that were never
+  captured cannot be reconstructed.
+- YouTube discovers the last 90 days of uploads through the uploads playlist
+  (50 per page, including Shorts), and continues refreshing every previously
+  tracked video in batches of 50. Older public videos already in D1 remain tracked.
+- `/api/collect` returns `counts` and `errors`. A failed source or YouTube batch
+  is reported; successful batches and other sources are still saved.
+
+Regression checks: `npm test` (Node 22.13+ for SQLite) and `npm run typecheck`.
+
 ## Prerequisites
 
 Node 20+, a Cloudflare account.

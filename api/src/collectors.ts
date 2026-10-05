@@ -1,5 +1,6 @@
 import games from "./games.json";
 import { Env, GameConfig, Metric, num } from "./types";
+import { getTrackedYouTubeIds } from "./db";
 
 export const getGame = (slug: string): GameConfig | null =>
   (games as Record<string, GameConfig>)[slug] ?? null;
@@ -15,35 +16,71 @@ const flagOn = (v: string | undefined): boolean => {
 };
 
 // --- YouTube (free Data API v3). Needs YOUTUBE_API_KEY. ---
-async function collectYouTube(game: GameConfig, env: Env): Promise<Metric[]> {
-  if (!env.YOUTUBE_API_KEY || game.youtube_channel_ids.length === 0) return [];
-  const out: Metric[] = [];
+async function collectYouTube(slug: string, game: GameConfig, env: Env, report: (message: string) => void): Promise<Metric[]> {
+  if (game.youtube_channel_ids.length === 0) return [];
+  if (!env.YOUTUBE_API_KEY) throw new Error("YouTube: YOUTUBE_API_KEY is missing");
+  const ids = new Set(await getTrackedYouTubeIds(env.DB, slug));
+  const cutoff = new Date(Date.now() - 90 * 864e5).toISOString();
+  const api = async (resource: string, params: Record<string, string>) => {
+    const url = new URL(`https://www.googleapis.com/youtube/v3/${resource}`);
+    url.search = new URLSearchParams({ ...params, key: env.YOUTUBE_API_KEY! }).toString();
+    const r = await fetch(url, { signal: AbortSignal.timeout(20000) });
+    if (!r.ok) {
+      const error = await r.json().catch(() => null) as any;
+      throw new Error(`YouTube ${resource}: HTTP ${r.status} (${error?.error?.errors?.[0]?.reason ?? "request failed"})`);
+    }
+    return await r.json() as any;
+  };
+  // The uploads playlist is chronological, includes Shorts, and costs one quota
+  // unit per page. search.list costs 100 units and can omit/delay uploads.
   for (const ch of game.youtube_channel_ids) {
-    // Latest videos (1 call per channel, cheap on quota)
-    const s = await fetch(
-      `https://www.googleapis.com/youtube/v3/search?part=snippet&channelId=${ch}&maxResults=10&order=date&type=video&key=${env.YOUTUBE_API_KEY}`
-    );
-    if (!s.ok) continue;
-    const j = (await s.json()) as any;
-    const ids = (j.items ?? []).map((i: any) => i.id?.videoId).filter(Boolean);
-    if (ids.length === 0) continue;
-    const v = await fetch(
-      `https://www.googleapis.com/youtube/v3/videos?part=snippet,statistics&id=${ids.join(",")}&key=${env.YOUTUBE_API_KEY}`
-    );
-    if (!v.ok) continue;
-    const vj = (await v.json()) as any;
-    for (const it of vj.items ?? []) {
-      out.push({
-        platform: "youtube",
-        post_id: it.id,
-        url: `https://youtu.be/${it.id}`,
-        title: it.snippet?.title ?? "",
-        views: num(it.statistics?.viewCount),
-        likes: num(it.statistics?.likeCount),
-        comments: num(it.statistics?.commentCount),
-        shares: 0, // API has no shares
-        published_at: it.snippet?.publishedAt ?? null,
-      });
+    try {
+      const channel = await api("channels", { part: "contentDetails", id: ch });
+      const playlist = channel.items?.[0]?.contentDetails?.relatedPlaylists?.uploads;
+      if (!playlist) throw new Error(`YouTube channel ${ch}: uploads playlist missing`);
+      let pageToken = "";
+      do {
+        const page = await api("playlistItems", {
+          part: "contentDetails", playlistId: playlist, maxResults: "50", ...(pageToken ? { pageToken } : {}),
+        });
+        let reachedCutoff = false;
+        for (const it of page.items ?? []) {
+          const detail = it.contentDetails;
+          if (!detail?.videoId) continue;
+          if (detail.videoPublishedAt && detail.videoPublishedAt < cutoff) {
+            reachedCutoff = true;
+            continue;
+          }
+          ids.add(detail.videoId);
+        }
+        pageToken = reachedCutoff ? "" : (page.nextPageToken ?? "");
+      } while (pageToken);
+    } catch (e) {
+      report(e instanceof Error ? e.message : "YouTube discovery failed");
+    }
+  }
+  const out: Metric[] = [];
+  const videoIds = [...ids];
+  for (let offset = 0; offset < videoIds.length; offset += 50) {
+    try {
+      const vj = await api("videos", { part: "snippet,statistics", id: videoIds.slice(offset, offset + 50).join(",") });
+      for (const it of vj.items ?? []) {
+        // Deleted/private videos have no statistics; do not write a false zero.
+        if (it.statistics?.viewCount === undefined) continue;
+        out.push({
+          platform: "youtube",
+          post_id: it.id,
+          url: `https://youtu.be/${it.id}`,
+          title: it.snippet?.title ?? "",
+          views: num(it.statistics?.viewCount),
+          likes: num(it.statistics?.likeCount),
+          comments: num(it.statistics?.commentCount),
+          shares: 0, // API has no shares
+          published_at: it.snippet?.publishedAt ?? null,
+        });
+      }
+    } catch (e) {
+      report(e instanceof Error ? e.message : "YouTube video refresh failed");
     }
   }
   return out;
@@ -55,8 +92,9 @@ async function collectReddit(game: GameConfig): Promise<Metric[]> {
   for (const sub of game.subreddits) {
     const r = await fetch(`https://www.reddit.com/r/${sub}/hot.json?limit=20`, {
       headers: { "User-Agent": "gacha-trend/0.1 (cloudflare worker)" },
+      signal: AbortSignal.timeout(20000),
     });
-    if (!r.ok) continue;
+    if (!r.ok) throw new Error(`Reddit r/${sub}: HTTP ${r.status}`);
     const j = (await r.json()) as any;
     for (const c of j.data?.children ?? []) {
       const d = c.data;
@@ -81,22 +119,24 @@ async function collectReddit(game: GameConfig): Promise<Metric[]> {
 // Alternative: push twitch numbers from homelab via POST /api/ingest.) ---
 async function collectTwitch(game: GameConfig, env: Env): Promise<Metric[]> {
   if (!flagOn(env.ENABLE_TWITCH)) return [];
-  if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET || !game.twitch_game_id) return [];
+  if (!game.twitch_game_id) return [];
+  if (!env.TWITCH_CLIENT_ID || !env.TWITCH_CLIENT_SECRET) throw new Error("Twitch enabled but credentials are missing");
   const t = await fetch("https://id.twitch.tv/oauth2/token", {
     method: "POST",
+    signal: AbortSignal.timeout(20000),
     body: new URLSearchParams({
       client_id: env.TWITCH_CLIENT_ID,
       client_secret: env.TWITCH_CLIENT_SECRET,
       grant_type: "client_credentials",
     }),
   });
-  if (!t.ok) return [];
+  if (!t.ok) throw new Error(`Twitch authentication: HTTP ${t.status}`);
   const { access_token } = (await t.json()) as any;
   const r = await fetch(
     `https://api.twitch.tv/helix/streams?game_id=${game.twitch_game_id}&first=20`,
-    { headers: { "Client-ID": env.TWITCH_CLIENT_ID, Authorization: `Bearer ${access_token}` } }
+    { headers: { "Client-ID": env.TWITCH_CLIENT_ID, Authorization: `Bearer ${access_token}` }, signal: AbortSignal.timeout(20000) }
   );
-  if (!r.ok) return [];
+  if (!r.ok) throw new Error(`Twitch streams: HTTP ${r.status}`);
   const j = (await r.json()) as any;
   return (j.data ?? []).map((s: any) => ({
     platform: "twitch",
@@ -115,20 +155,21 @@ async function collectTwitch(game: GameConfig, env: Env): Promise<Metric[]> {
 // Unofficial and can break, hence ENABLE_X. X exposes no impressions through
 // this endpoint, so views stay 0 and the dashboard shows likes for X instead.
 // One request per handle returns the latest ~20 posts, thread replies included.
-async function collectX(game: GameConfig, env: Env): Promise<Metric[]> {
+async function collectX(game: GameConfig, env: Env, report: (message: string) => void): Promise<Metric[]> {
   if (!flagOn(env.ENABLE_X) || game.x_handles.length === 0) return [];
   const byId = new Map<string, Metric>();
   for (const handle of game.x_handles) {
     try {
       const r = await fetch(
         `https://syndication.twitter.com/srv/timeline-profile/screen-name/${encodeURIComponent(handle)}`,
-        { headers: { "user-agent": UA } }
+        { headers: { "user-agent": UA }, signal: AbortSignal.timeout(20000) }
       );
-      if (!r.ok) continue;
+      if (!r.ok) throw new Error(`X @${handle}: HTTP ${r.status}`);
       const html = await r.text();
       const raw = html.match(/<script id="__NEXT_DATA__" type="application\/json">([\s\S]*?)<\/script>/)?.[1];
-      if (!raw) continue;
-      const entries = JSON.parse(raw)?.props?.pageProps?.timeline?.entries ?? [];
+      if (!raw) throw new Error(`X @${handle}: timeline data missing`);
+      const entries = JSON.parse(raw)?.props?.pageProps?.timeline?.entries;
+      if (!Array.isArray(entries)) throw new Error(`X @${handle}: invalid timeline data`);
       for (const entry of entries) {
         const tw = entry?.content?.tweet;
         if (!tw?.id_str) continue;
@@ -144,21 +185,36 @@ async function collectX(game: GameConfig, env: Env): Promise<Metric[]> {
           published_at: tw.created_at ? new Date(tw.created_at).toISOString() : null,
         });
       }
-    } catch { /* best-effort, same as the other collectors */ }
+    } catch (e) {
+      report(e instanceof Error ? e.message : `X @${handle}: collection failed`);
+    }
   }
   return [...byId.values()];
 }
 
-export interface CollectResult { source: string; metrics: Metric[]; counts: Record<string, number> }
+export interface CollectResult { source: string; metrics: Metric[]; counts: Record<string, number>; errors: Record<string, string> }
 
 export async function collectAll(slug: string, env: Env): Promise<CollectResult> {
   const game = getGame(slug);
-  if (!game) return { source: "cloudflare", metrics: [], counts: {} };
-  const [yt, rd, tw, x] = await Promise.all([
-    collectYouTube(game, env), collectReddit(game), collectTwitch(game, env), collectX(game, env),
+  if (!game) return { source: "cloudflare", metrics: [], counts: {}, errors: {} };
+  const errors: Record<string, string> = {};
+  const report = (platform: string) => (message: string) => {
+    errors[platform] = errors[platform] ? `${errors[platform]}; ${message}` : message;
+  };
+  // A failed source must not discard the successful sources in this run.
+  const results = await Promise.allSettled([
+    collectYouTube(slug, game, env, report("youtube")), collectReddit(game), collectTwitch(game, env), collectX(game, env, report("x")),
   ]);
-  const counts = { youtube: yt.length, reddit: rd.length, twitch: tw.length, x: x.length };
-  return { source: "cloudflare", metrics: [...yt, ...rd, ...tw, ...x], counts };
+  const platforms = ["youtube", "reddit", "twitch", "x"];
+  const counts: Record<string, number> = {};
+  const metrics: Metric[] = [];
+  results.forEach((result, i) => {
+    const platform = platforms[i];
+    counts[platform] = result.status === "fulfilled" ? result.value.length : 0;
+    if (result.status === "fulfilled") metrics.push(...result.value);
+    else errors[platform] = result.reason instanceof Error ? result.reason.message : "Collection failed";
+  });
+  return { source: "cloudflare", metrics, counts, errors };
 }
 
 export interface ChannelMeta {

@@ -12,7 +12,8 @@ app.get("/api/games", (c) => {
   return c.json({ games, labels });
 });
 
-// Trend: aggregated views/likes/comments per day per platform.
+// Trend: last-known totals and observed per-post gains, per UTC day/platform.
+// Includes a pre-window baseline without exposing it as an in-window day.
 // Query: /api/trend?game=genshin-impact&days=7
 app.get("/api/trend", async (c) => {
   const game = c.req.query("game") ?? "genshin-impact";
@@ -106,9 +107,9 @@ app.post("/api/collect", async (c) => {
     return c.json({ error: "unauthorized" }, 401);
   const game = c.req.query("game") ?? "genshin-impact";
   if (!getGame(game)) return c.json({ error: "unknown game" }, 404);
-  const { metrics, counts } = await collectAll(game, c.env);
+  const { metrics, counts, errors } = await collectAll(game, c.env);
   const n = await saveMetrics(c.env.DB, game, "cloudflare", metrics);
-  return c.json({ ok: true, saved: n, counts });
+  return c.json({ ok: Object.keys(errors).length === 0, saved: n, counts, errors });
 });
 
 export default {
@@ -117,7 +118,8 @@ export default {
   async scheduled(_e: ScheduledEvent, env: Env, _ctx: ExecutionContext) {
     for (const slug of listGames()) {
       try {
-        const { metrics } = await collectAll(slug, env);
+        const { metrics, errors } = await collectAll(slug, env);
+        if (Object.keys(errors).length) console.error(slug, errors);
         await saveMetrics(env.DB, slug, "cloudflare", metrics);
       } catch (e) { console.error(slug, e); }
     }

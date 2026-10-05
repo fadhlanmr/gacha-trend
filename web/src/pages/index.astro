@@ -49,8 +49,8 @@
     <div class="error-banner" id="error" role="alert" hidden><span id="errorMessage"></span><button id="retry" class="retry-button">Try again</button></div>
     <div id="dashboard" aria-busy="true">
       <section id="overview" aria-labelledby="overviewTitle">
-        <div class="sec-hd"><h2 id="overviewTitle">At a glance</h2><span class="note" id="overviewNote">Latest available capture</span></div>
-        <div class="summary" id="summary">{["Views", "Likes", "Comments", "Engagement", "Posts tracked"].map((label) => <div class="cell"><span class="k">{label}</span><span class="sk v"></span><span class="sk short"></span></div>)}</div>
+        <div class="sec-hd"><h2 id="overviewTitle">At a glance</h2><span class="note" id="overviewNote">Observed gains in the selected window</span></div>
+        <div class="summary" id="summary">{["Views gained", "Likes gained", "Comments gained", "Engagement", "Posts tracked"].map((label) => <div class="cell"><span class="k">{label}</span><span class="sk v"></span><span class="sk short"></span></div>)}</div>
       </section>
       <section id="platforms" aria-labelledby="platformsTitle">
         <div class="sec-hd"><h2 id="platformsTitle">Platform breakdown</h2><span class="note"><span id="boardNote">Select a platform to explore</span><button class="linkish" id="clearPlat" hidden>Show all</button></span></div>
@@ -66,7 +66,7 @@
           <p class="chart-note" id="chartNote"></p>
         </section>
         <section id="games" class="panel games-panel" aria-labelledby="gamesTitle">
-          <div class="sec-hd"><div><h2 id="gamesTitle">Across games</h2><p class="section-description">Latest views in the last 7 days</p></div><span class="count-badge" id="gameCount">—</span></div>
+          <div class="sec-hd"><div><h2 id="gamesTitle">Across games</h2><p class="section-description" id="gamesDescription">Observed view gains in the selected window</p></div><span class="count-badge" id="gameCount">—</span></div>
           <label class="search-field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="q" type="search" placeholder="Find a game" aria-label="Filter games" /></label>
           <div id="gameList"><span class="sk row"></span><span class="sk row"></span></div>
         </section>
