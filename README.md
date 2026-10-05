@@ -120,6 +120,16 @@ curl -X POST "https://gacha-trend.<your-subdomain>.workers.dev/api/ingest?game=g
 
 Single object or array (max 500). Stored with `source='external'`.
 
+An optional `thumbnail_url` supplies a photo or video-poster image for any
+platform, for example `"thumbnail_url":"https://example.com/post.jpg"`.
+X collection saves the first attached photo or video poster automatically.
+Text-only posts and failed image loads use the platform icon.
+
+Thumbnail support requires migration `0003_add_thumbnail_url.sql`: run
+`npm run db:migrate` **before** `npm run deploy`, then collect again (or wait
+for the daily cron). Existing snapshots have no thumbnail until a new capture
+includes one; only posts still returned by the X timeline can be refreshed.
+
 ## Add game
 
 Edit `api/src/games.json` (one block per game, no code change), redeploy, then:

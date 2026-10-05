@@ -1,5 +1,5 @@
 import games from "./games.json";
-import { Env, GameConfig, Metric, num } from "./types";
+import { Env, GameConfig, Metric, num, thumbnailUrl } from "./types";
 import { getTrackedYouTubeIds } from "./db";
 
 export const getGame = (slug: string): GameConfig | null =>
@@ -173,6 +173,8 @@ async function collectX(game: GameConfig, env: Env, report: (message: string) =>
       for (const entry of entries) {
         const tw = entry?.content?.tweet;
         if (!tw?.id_str) continue;
+        const media = tw.extended_entities?.media?.length ? tw.extended_entities.media : (tw.entities?.media ?? []);
+        const thumbnail = media.map((m: any) => thumbnailUrl(m.media_url_https ?? m.media_url)).find(Boolean) ?? null;
         byId.set(tw.id_str, {
           platform: "x",
           post_id: tw.id_str,
@@ -183,6 +185,7 @@ async function collectX(game: GameConfig, env: Env, report: (message: string) =>
           comments: num(tw.reply_count),
           shares: num(tw.retweet_count) + num(tw.quote_count),
           published_at: tw.created_at ? new Date(tw.created_at).toISOString() : null,
+          thumbnail_url: thumbnail,
         });
       }
     } catch (e) {

@@ -28,8 +28,12 @@ function database() {
   const db = {
     prepare(query) {
       const statement = sql.prepare(query);
-      return { bind: (...args) => ({ all: async () => ({ results: statement.all(...args) }) }) };
+      return { bind: (...args) => ({
+        all: async () => ({ results: statement.all(...args) }),
+        run: async () => { statement.run(...args); return { success: true }; },
+      }) };
     },
+    batch: async (statements) => Promise.all(statements.map((statement) => statement.run())),
   };
   const insert = sql.prepare(`INSERT INTO snapshots
     (game, platform, post_id, title, views, likes, comments, shares, source, captured_at, published_at)

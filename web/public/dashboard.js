@@ -321,9 +321,14 @@ function renderPosts() {
   const stats = (p) => (p.views
     ? [["Views", fmtFull(p.views)], ["Likes", fmtFull(p.likes)], ["Comments", fmtFull(p.comments)]]
     : [["Likes", fmtFull(p.likes)], ["Replies", fmtFull(p.comments)], ["Reposts", fmtFull(p.shares)]]);
-  const media = (p, i) => (p.platform === "youtube" && p.post_id
-    ? `<div class="pthumb"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${esc(encodeURIComponent(p.post_id))}/hqdefault.jpg"><span class="post-rank" aria-label="Rank ${i + 1}">${i + 1}</span></div>`
-    : `<div class="pthumb ph" style="--c:${platColor(p.platform)}">${platMark(p.platform)}<span class="post-rank" aria-label="Rank ${i + 1}">${i + 1}</span></div>`);
+  const media = (p, i) => {
+    const image = p.thumbnail_url || (p.platform === "youtube" && p.post_id
+      ? `https://i.ytimg.com/vi/${encodeURIComponent(p.post_id)}/hqdefault.jpg` : "");
+    const rank = `<span class="post-rank" aria-label="Rank ${i + 1}">${i + 1}</span>`;
+    return image
+      ? `<div class="pthumb" data-platform="${esc(p.platform)}"><img loading="lazy" alt="" src="${esc(image)}">${rank}</div>`
+      : `<div class="pthumb ph" style="--c:${platColor(p.platform)}">${platMark(p.platform)}${rank}</div>`;
+  };
   $("postList").innerHTML = list.map((p, i) => `
     <a class="postcard" href="${esc(p.url)}" target="_blank" rel="noopener">
       ${media(p, i)}
@@ -341,11 +346,16 @@ function renderPosts() {
     </a>`).join("");
   $("postList").querySelectorAll("img").forEach((img) => {
     img.onerror = () => {
-      img.hidden = true;
-      img.parentElement.classList.add("ph");
-      img.parentElement.style.setProperty("--c", platColor("youtube"));
-      img.parentElement.insertAdjacentHTML("afterbegin", platMark("youtube"));
+      const container = img.parentElement;
+      if (!container) return;
+      const platform = container.dataset.platform;
+      img.remove();
+      container.classList.add("ph");
+      container.style.setProperty("--c", platColor(platform));
+      container.insertAdjacentHTML("afterbegin", platMark(platform));
     };
+    // A cached failure can finish before the handler is attached.
+    if (img.complete && img.naturalWidth === 0) img.onerror();
   });
 }
 

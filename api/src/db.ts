@@ -1,4 +1,4 @@
-import { Metric } from "./types";
+import { Metric, thumbnailUrl } from "./types";
 
 export async function saveMetrics(
   db: D1Database,
@@ -9,13 +9,13 @@ export async function saveMetrics(
   if (metrics.length === 0) return 0;
   const now = new Date().toISOString();
   const stmt = db.prepare(
-    `INSERT INTO snapshots (game, platform, post_id, url, title, views, likes, comments, shares, source, published_at, captured_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    `INSERT INTO snapshots (game, platform, post_id, url, title, views, likes, comments, shares, source, published_at, captured_at, thumbnail_url)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   );
   const batch = metrics.map((m) =>
     stmt.bind(
       game, m.platform, m.post_id, m.url, m.title.slice(0, 500),
-      m.views, m.likes, m.comments, m.shares, source, m.published_at ?? null, now
+      m.views, m.likes, m.comments, m.shares, source, m.published_at ?? null, now, thumbnailUrl(m.thumbnail_url)
     )
   );
   await db.batch(batch);
@@ -145,16 +145,16 @@ export async function getBuzz(db: D1Database, game: string, days: number, keywor
 // otherwise never outrank YouTube).
 export async function getTopPosts(db: D1Database, game: string, days: number, limit: number) {
   const { results } = await db.prepare(
-    `WITH latest AS (
-       SELECT platform, post_id, url, title, views, likes, comments, shares, source, published_at,
-         MAX(captured_at) AS captured_at
+    `WITH captures AS (
+       SELECT *, ROW_NUMBER() OVER (PARTITION BY platform, post_id ORDER BY captured_at DESC, id DESC) AS capture_rank
        FROM snapshots WHERE game = ? AND captured_at >= date('now', ?)
-       GROUP BY platform, post_id
+     ), latest AS (
+       SELECT * FROM captures WHERE capture_rank = 1
      ), ranked AS (
        SELECT *, ROW_NUMBER() OVER (PARTITION BY platform ORDER BY views DESC, likes DESC) AS rn
        FROM latest
      )
-     SELECT platform, post_id, url, title, views, likes, comments, shares, source, published_at, captured_at
+      SELECT platform, post_id, url, title, views, likes, comments, shares, source, published_at, captured_at, thumbnail_url
      FROM ranked WHERE rn <= ? ORDER BY views DESC, likes DESC`
   ).bind(game, windowModifier(days), limit).all();
   return results;

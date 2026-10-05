@@ -8,6 +8,7 @@ export interface Metric {
   comments: number;
   shares: number;
   published_at: string | null;
+  thumbnail_url?: string | null;
 }
 
 export interface GameConfig {
@@ -33,4 +34,12 @@ export interface Env {
 export const num = (v: unknown): number => {
   const n = Number(v);
   return Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0;
+};
+
+export const thumbnailUrl = (value: unknown): string | null => {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch { return null; }
 };
