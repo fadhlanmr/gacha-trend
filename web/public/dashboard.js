@@ -10,7 +10,7 @@ const fmtStamp = (s) => (s ? new Date(s).toLocaleDateString("en", { month: "shor
 const cssVar = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
 const isDark = () => document.documentElement.classList.contains("dark");
 
-// Platform colour is the only saturated colour on the page.
+// Platform colours distinguish sources from the dashboard's violet controls.
 const PLATFORM_C = {
   youtube: { light: "#D93025", dark: "#FF5A50" },
   reddit: { light: "#E4571F", dark: "#FF7A45" },
@@ -36,11 +36,14 @@ const platMark = (p) => `<svg viewBox="0 0 24 24" fill="currentColor" aria-hidde
 const state = {
   games: [], labels: {}, gameTotals: {}, gameSeries: {}, gamePlats: {},
   allRows: [], posts: [], buzz: null, platform: "all", days: 7, mode: "platform",
+  game: "", postsError: false,
 };
 let chart;
+let loadController;
+let loadVersion = 0;
 
-async function j(path) {
-  const r = await fetch(API + path);
+async function j(path, signal) {
+  const r = await fetch(API + path, { signal });
   if (!r.ok) throw new Error(`${path} -> ${r.status}`);
   return r.json();
 }
@@ -66,7 +69,7 @@ function sparkline(values, color) {
   </svg>`;
 }
 
-const delta = (d, suffix = "vs previous day") => {
+const delta = (d, suffix = "vs previous capture") => {
   if (d === null || d === undefined) return `<span style="color:var(--mut)">first capture</span>`;
   if (d === 0) return `<span style="color:var(--mut)">no change</span>`;
   return `<span class="${d > 0 ? "up" : "down"}">${d > 0 ? "▲" : "▼"} ${fmtFull(Math.abs(d))}</span> <span style="color:var(--mut)">${suffix}</span>`;
@@ -75,8 +78,9 @@ const delta = (d, suffix = "vs previous day") => {
 function buildSeries(rows) {
   const by = {};
   for (const r of rows) {
-    const b = (by[r.date] ??= { views: 0, likes: 0, comments: 0 });
+    const b = (by[r.date] ??= { views: 0, likes: 0, comments: 0, posts: 0 });
     b.views += r.views; b.likes += r.likes; b.comments += r.comments;
+    b.posts += r.posts || 0;
   }
   return { by, dates: Object.keys(by).sort() };
 }
@@ -90,23 +94,18 @@ function series(rows, key) {
 const lastOf = (d) => { const ds = Object.keys(d || {}).sort(); return ds.length ? d[ds.at(-1)] : 0; };
 const prevOf = (d) => { const ds = Object.keys(d || {}).sort(); return ds.length > 1 ? d[ds.at(-2)] : null; };
 
-function setAccent() {
-  const c = state.platform === "all" ? cssVar("--ink") : platColor(state.platform);
-  document.documentElement.style.setProperty("--accent", c);
-}
-
 // ---------- renderers ----------
 function renderSummary(dates, by, rows) {
   const last = dates.at(-1);
   if (!last) {
-    $("summary").innerHTML = ["Views", "Likes", "Comments", "Engagement", "Posts"]
+    $("summary").innerHTML = ["Views", "Likes", "Comments", "Engagement", "Posts tracked"]
       .map((k) => `<div class="cell"><div class="k">${k}</div><div class="v">–</div><div class="d"></div></div>`).join("");
-    $("overviewNote").textContent = "";
+    $("overviewNote").textContent = "No captures in this window";
     return;
   }
   const prev = dates.length > 1 ? by[dates.at(-2)] : null;
   const cur = by[last];
-  const posts = state.buzz?.samples ?? 0;
+  const posts = cur.posts;
   const hasViews = cur.views > 0;
   // Engagement is a ratio, so it may only use rows that report views — mixing in
   // a likes-only platform would divide its likes by another platform's views.
@@ -120,27 +119,33 @@ function renderSummary(dates, by, rows) {
     ["Engagement", vViews ? eng.toFixed(2) + "%" : "—", null],
     ["Posts tracked", fmtFull(posts), null],
   ];
-  $("summary").innerHTML = cells.map(([k, v, d]) =>
-    `<div class="cell"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${d === null ? "" : delta(d)}</div></div>`
-  ).join("");
+  $("summary").innerHTML = cells.map(([k, v, d]) => {
+    const detail = k === "Engagement" ? "(Likes + comments) / views"
+      : k === "Posts tracked" ? "In the latest capture"
+      : k === "Views" && !hasViews ? "View counts unavailable"
+      : d === null ? "First capture in this window" : delta(d);
+    return `<div class="cell"><div class="k">${k}</div><div class="v">${v}</div><div class="d">${detail}</div></div>`;
+  }).join("");
   $("overviewNote").textContent = `Latest capture ${fmtDate(last)}`;
 }
 
 function renderBoard() {
+  const focusedPlatform = $("board").contains(document.activeElement) ? document.activeElement.dataset.p : null;
   const rows = state.allRows;
   const viewsByP = series(rows, "views");
   const likesByP = series(rows, "likes");
-  const commentsByP = series(rows, "comments");
   const plats = [...new Set([...Object.keys(viewsByP), ...Object.keys(likesByP)])];
-  if (!plats.length) return void ($("board").innerHTML = '<p class="empty">No platform data in this window.</p>');
+  $("boardNote").textContent = state.platform === "all" ? "Select a platform to filter activity and posts" : `Viewing ${platName(state.platform)}`;
+  $("clearPlat").hidden = state.platform === "all";
+  if (!plats.length) return void ($("board").innerHTML = '<p class="empty">No platform captures in this window. Try a longer time window or check back after the next daily collection.</p>');
   const stats = plats.map((p) => {
     const views = lastOf(viewsByP[p]);
     const prev = prevOf(viewsByP[p]);
     return {
       p, views,
       likes: lastOf(likesByP[p]),
-      comments: lastOf(commentsByP[p]),
       delta: prev === null ? null : views - prev,
+      likesDelta: prevOf(likesByP[p]) === null ? null : lastOf(likesByP[p]) - prevOf(likesByP[p]),
     };
   }).sort((a, b) => b.views - a.views || b.likes - a.likes);
   const total = stats.reduce((a, s) => a + s.views, 0);
@@ -151,32 +156,33 @@ function renderBoard() {
     const value = noViews ? (s.likes ? fmtFull(s.likes) : "—") : fmtFull(s.views);
     const unit = noViews ? (s.likes ? "likes" : "no view data") : "views";
     const meta = noViews
-      ? `<span>${s.comments ? fmtFull(s.comments) + " replies" : "engagement only"}</span>`
-      : `${delta(s.delta)} <span>${total ? ((s.views / total) * 100).toFixed(0) : 0}% of views</span>`;
+      ? `<span>${delta(s.likesDelta, "likes gained")}</span><span>Views unavailable</span>`
+      : `<span>${delta(s.delta)}</span><span>${total ? ((s.views / total) * 100).toFixed(0) : 0}% of views</span>`;
     return `
     <button class="ptile" data-p="${esc(s.p)}" style="--c:${platColor(s.p)}" aria-pressed="${state.platform === s.p}">
-      <span class="ptop"><span class="pmark">${platMark(s.p)}</span>${esc(platName(s.p))}</span>
-      <span class="pval">${value}</span>
-      <span class="punit">${unit}</span>
+      <span class="ptop"><span class="pmark">${platMark(s.p)}</span>${esc(platName(s.p))}${state.platform === s.p ? '<span class="platform-check" aria-hidden="true">✓</span>' : ""}</span>
+      <span class="pvalue-line"><span class="pval">${value}</span><span class="punit">${unit}</span></span>
       <span class="pmeta">${meta}</span>
       <span class="pbar"><i style="width:${noViews ? 0 : (s.views / max) * 100}%"></i></span>
     </button>`;
   }).join("");
   $("board").querySelectorAll(".ptile").forEach((el) => {
+    if (el.dataset.p === focusedPlatform) el.focus({ preventScroll: true });
     el.onclick = () => {
       state.platform = state.platform === el.dataset.p ? "all" : el.dataset.p;
       renderAll();
     };
   });
-  $("boardNote").textContent = state.platform === "all"
-    ? "Select a platform to filter the page"
-    : `Filtered to ${platName(state.platform)}`;
-  $("clearPlat").hidden = state.platform === "all";
 }
 
 function renderChart(dates, by, rows) {
   if (chart) { chart.destroy(); chart = null; }
   const mode = state.mode;
+  $("chartDescription").textContent = {
+    platform: "View gains between daily captures, grouped by platform.",
+    total: "Captured totals. Views on the left axis; likes on the right.",
+    gain: "Change between captures. Views on the left axis; likes on the right.",
+  }[mode];
   const viewsByP = series(rows, "views");
   const withViews = Object.keys(viewsByP).filter((p) => Object.values(viewsByP[p]).some((v) => v > 0));
   const withoutViews = Object.keys(viewsByP).filter((p) => !withViews.includes(p));
@@ -187,15 +193,23 @@ function renderChart(dates, by, rows) {
   $("chartNote").textContent = withoutViews.length
     ? `${withoutViews.map(platName).join(", ")} ${withoutViews.length > 1 ? "report" : "reports"} no view counts — see the platform tiles.`
     : "";
-  $("chartEmpty").hidden = enough;
+  const chartAvailable = typeof Chart !== "undefined";
+  $("chartEmpty").hidden = enough && chartAvailable;
+  $("chartBox").hidden = !enough || !chartAvailable;
   if (!enough) {
-    $("chartEmpty").textContent = mode === "platform" && withViews.length === 0
+    $("chartEmpty").textContent = !dates.length
+      ? "No captures in this window. Try a longer time window to see activity."
+      : mode === "platform" && withViews.length === 0
       ? "No view counts in this selection — the platform tiles show likes instead."
       : "Not enough captures yet — a second collection is needed before a trend line appears.";
     return;
   }
+  if (!chartAvailable) {
+    $("chartEmpty").textContent = "The chart library could not load. Reload the page to try again; the activity totals are available above.";
+    return;
+  }
 
-  const ink = cssVar("--ink"), mut = cssVar("--mut"), rule = cssVar("--rule");
+  const ink = cssVar("--brand"), mut = cssVar("--mut"), rule = cssVar("--rule");
   const ticks = { color: mut, callback: (v) => fmt(v) };
   let datasets = [], scales;
 
@@ -203,7 +217,7 @@ function renderChart(dates, by, rows) {
     datasets = withViews.sort().map((p) => ({
       type: "bar", label: platName(p), stack: "v", yAxisID: "y", borderRadius: 2, maxBarThickness: 46,
       backgroundColor: platColor(p),
-      data: dates.map((d, i) => (i === 0 ? 0 : Math.max(0, (viewsByP[p][d] || 0) - (viewsByP[p][dates[i - 1]] || 0)))),
+      data: dates.map((d, i) => (i === 0 || viewsByP[p][d] === undefined || viewsByP[p][dates[i - 1]] === undefined ? null : Math.max(0, viewsByP[p][d] - viewsByP[p][dates[i - 1]]))),
     }));
     scales = {
       x: { stacked: true, ticks: { color: mut }, grid: { display: false }, border: { color: rule } },
@@ -236,11 +250,12 @@ function renderChart(dates, by, rows) {
     data: { labels: dates.map(fmtDate), datasets },
     options: {
       responsive: true, maintainAspectRatio: false,
+      animation: matchMedia("(prefers-reduced-motion: reduce)").matches ? false : { duration: 250 },
       interaction: { mode: "index", intersect: false },
       plugins: {
         legend: { labels: { color: ink, boxWidth: 9, boxHeight: 9, usePointStyle: true, pointStyle: "rectRounded", font: { family: "Nunito Sans, system-ui, sans-serif", size: 12 } } },
         tooltip: {
-          backgroundColor: ink, titleColor: cssVar("--card"), bodyColor: cssVar("--card"),
+          backgroundColor: cssVar("--ink"), titleColor: cssVar("--card"), bodyColor: cssVar("--card"),
           padding: 10, cornerRadius: 4, boxPadding: 4,
           callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${fmtFull(ctx.parsed.y ?? 0)}` },
         },
@@ -253,7 +268,7 @@ function renderChart(dates, by, rows) {
 function renderTopics(buzz) {
   const tracked = Object.entries(buzz?.counts ?? {}).sort((a, b) => b[1] - a[1]);
   const tags = Object.entries(buzz?.terms ?? {});
-  const rows = (entries, unit) => entries.length
+  const rows = (entries) => entries.length
     ? entries.map(([k, n], i, arr) => {
         const max = Math.max(...arr.map((e) => e[1]), 1);
         return `<div class="trow">
@@ -261,23 +276,26 @@ function renderTopics(buzz) {
           <div class="tn">${n}</div>
         </div>`;
       }).join("")
-    : `<p class="empty">Nothing found in this window.</p>`;
+    : `<p class="empty">No matching titles in this window. Try a longer time window.</p>`;
   $("topicsKw").innerHTML = rows(tracked);
   $("topicsTags").innerHTML = rows(tags);
-  $("topicsNote").textContent = state.buzz?.samples ? `From ${state.buzz.samples} post titles` : "";
+  $("topicsNote").textContent = state.buzz?.samples ? `${fmtFull(state.buzz.samples)} titles · All platforms` : "All platforms";
 }
 
-function renderGames(filter = "") {
-  const needle = filter.toLowerCase();
+function renderGames(filter = $("q").value) {
+  const needle = filter.trim().toLowerCase();
   const list = state.games.filter((g) => g.includes(needle) || (state.labels[g] ?? "").toLowerCase().includes(needle));
+  $("gameCount").textContent = list.length;
   if (!list.length) return void ($("gameList").innerHTML = '<p class="empty">No games match that filter.</p>');
   const entries = list.map((g) => [g, state.gameTotals[g] || 0]).sort((a, b) => b[1] - a[1]);
   $("gameList").innerHTML = entries.map(([g, v]) => {
     const plats = (state.gamePlats[g] ?? []).map((p) => `<span class="mark" style="background:${platColor(p)}" title="${esc(platName(p))}"></span>`).join(" ");
-    return `<button class="grow" data-game="${esc(g)}">
-      <span><span class="gname">${esc(state.labels[g] ?? g)}</span><span class="gsub">${plats ? plats : "No platforms yet"}</span></span>
-      <span class="gspark">${sparkline(state.gameSeries[g] || [], platColor((state.gamePlats[g] ?? [])[0] ?? "youtube") || cssVar("--ink"))}</span>
-      <span class="gv" style="text-align:right"><strong>${fmtFull(v)}</strong><span class="gsub">views tracked</span></span>
+    const initials = (state.labels[g] ?? g).split(/[\s:-]+/).map((word) => word[0]).slice(0, 3).join("");
+    const hasData = (state.gameSeries[g] ?? []).length > 0;
+    return `<button class="grow" data-game="${esc(g)}" aria-current="${state.game === g}" aria-label="View ${esc(state.labels[g] ?? g)} dashboard">
+      <span class="game-icon" aria-hidden="true">${esc(initials)}</span>
+      <span><span class="gname">${esc(state.labels[g] ?? g)}</span><span class="gsub">${plats ? `${plats} <span>Official channels</span>` : "No captures yet"}</span></span>
+      <span class="gv"><strong title="${fmtFull(v)} views">${hasData ? fmt(v) : "—"}</strong>${sparkline(state.gameSeries[g] || [], cssVar("--brand"))}</span>
     </button>`;
   }).join("");
   $("gameList").querySelectorAll(".grow").forEach((el) => {
@@ -286,124 +304,203 @@ function renderGames(filter = "") {
 }
 
 function renderPosts() {
-  const list = state.posts.filter((p) => state.platform === "all" || p.platform === state.platform).slice(0, 5);
+  const list = state.posts.filter((p) => state.platform === "all" || p.platform === state.platform).sort((a, b) => b.views - a.views || b.likes - a.likes).slice(0, 6);
   const byLikes = list.length > 0 && list.every((p) => !p.views);
-  $("postsNote").textContent = list.length ? (byLikes ? "Top 5 by likes" : "Top 5 by views") : "";
+  $("postsNote").textContent = list.length ? `Top ${list.length} by ${byLikes ? "likes" : "views"} · Opens in a new tab` : "";
   if (!list.length) {
-    $("postList").innerHTML = '<p class="empty">No posts in this window.</p>';
+    $("postList").innerHTML = `<p class="empty">${state.postsError ? "Posts could not load. Use the refresh button to try again." : "No posts in this selection. Try another platform or a longer time window."}</p>`;
     return;
   }
   // Platforms without view counts get their engagement stats instead.
   const stats = (p) => (p.views
     ? [["Views", fmtFull(p.views)], ["Likes", fmtFull(p.likes)], ["Comments", fmtFull(p.comments)]]
     : [["Likes", fmtFull(p.likes)], ["Replies", fmtFull(p.comments)], ["Reposts", fmtFull(p.shares)]]);
-  const media = (p) => (p.platform === "youtube" && p.post_id
-    ? `<div class="pthumb"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${esc(p.post_id)}/hqdefault.jpg" onerror="this.style.display='none'"></div>`
-    : `<div class="pthumb ph" style="--c:${platColor(p.platform)}">${platMark(p.platform)}</div>`);
-  $("postList").innerHTML = list.map((p) => `
+  const media = (p, i) => (p.platform === "youtube" && p.post_id
+    ? `<div class="pthumb"><img loading="lazy" alt="" src="https://i.ytimg.com/vi/${esc(encodeURIComponent(p.post_id))}/hqdefault.jpg"><span class="post-rank" aria-label="Rank ${i + 1}">${i + 1}</span></div>`
+    : `<div class="pthumb ph" style="--c:${platColor(p.platform)}">${platMark(p.platform)}<span class="post-rank" aria-label="Rank ${i + 1}">${i + 1}</span></div>`);
+  $("postList").innerHTML = list.map((p, i) => `
     <a class="postcard" href="${esc(p.url)}" target="_blank" rel="noopener">
-      ${media(p)}
+      ${media(p, i)}
       <div class="pbody">
-        <div class="ptitle">${esc(p.title || p.post_id)}</div>
         <div class="pmeta2">
           <span class="mark" style="background:${platColor(p.platform)}"></span>
           <span>${esc(platName(p.platform))}</span>
-          <span>${p.published_at ? `Published ${fmtStamp(p.published_at)}` : `First seen ${fmtStamp(p.captured_at)}`}</span>
+          <span class="post-date">${fmtStamp(p.published_at || p.captured_at)}</span>
         </div>
+        <div class="ptitle">${esc(p.title || p.post_id)}</div>
         <div class="pstats">
           ${stats(p).map(([k, v]) => `<div><span class="k">${k}</span><span class="n">${v}</span></div>`).join("")}
         </div>
       </div>
     </a>`).join("");
+  $("postList").querySelectorAll("img").forEach((img) => {
+    img.onerror = () => {
+      img.hidden = true;
+      img.parentElement.classList.add("ph");
+      img.parentElement.style.setProperty("--c", platColor("youtube"));
+      img.parentElement.insertAdjacentHTML("afterbegin", platMark("youtube"));
+    };
+  });
 }
 
 function renderAll() {
   const rows = state.allRows.filter((r) => state.platform === "all" || r.platform === state.platform);
   const { by, dates } = buildSeries(rows);
-  setAccent();
+  $("gameTitle").textContent = state.labels[state.game] ?? "Social activity";
+  $("scope").textContent = state.platform === "all" ? "All platforms" : platName(state.platform);
   renderSummary(dates, by, rows);
   renderBoard();
   renderChart(dates, by, rows);
   renderTopics(state.buzz);
   renderPosts();
+  renderGames();
+}
+
+function setLoading(loading) {
+  $("dashboard").setAttribute("aria-busy", String(loading));
+  $("dashboard").inert = loading;
+  $("refresh").disabled = loading;
+  $("refresh").setAttribute("aria-label", loading ? "Refreshing dashboard" : "Refresh dashboard");
+}
+
+function showError(message) {
+  $("errorMessage").textContent = message;
+  $("error").hidden = false;
+  $("status").dataset.state = "error";
+  $("status").textContent = "Activity unavailable";
 }
 
 async function load() {
   const game = $("game").value;
-  if (!game) return;
+  if (!state.games.includes(game)) return;
   const days = Number($("days").value);
-  $("status").textContent = "Loading…";
+  const version = ++loadVersion;
+  loadController?.abort();
+  loadController = new AbortController();
+  const { signal } = loadController;
+  setLoading(true);
+  $("error").hidden = true;
+  $("status").dataset.state = "loading";
+  $("status").textContent = `Loading ${state.labels[game] ?? game} activity…`;
   try {
-    const win = Math.min(days * 2, 90);
+    const query = new URLSearchParams({ game, days: String(days) });
     const [trend, posts] = await Promise.all([
-      j(`/api/trend?game=${game}&days=${win}`),
-      j(`/api/posts?game=${game}&days=${win}&limit=5`).catch(() => ({ rows: [] })),
+      j(`/api/trend?${query}`, signal),
+      j(`/api/posts?${query}&limit=6`, signal).catch((e) => {
+        if (e.name === "AbortError") throw e;
+        return { rows: [], failed: true };
+      }),
     ]);
+    if (version !== loadVersion) return;
+    if (state.game !== game) state.platform = "all";
+    state.game = game;
     state.allRows = trend.rows ?? [];
+    // A platform may disappear when changing the time window.
+    if (!state.allRows.some((r) => r.platform === state.platform)) state.platform = "all";
     state.buzz = trend.buzz;
     state.posts = posts.rows ?? [];
+    state.postsError = Boolean(posts.failed);
     state.days = days;
-    state.platform = "all";
-
     const stamp = state.allRows.reduce((a, r) => (r.last_updated > a ? r.last_updated : a), "");
+    $("status").dataset.state = "ready";
     $("status").innerHTML = [
-      `<span>${esc(state.labels[game] ?? game)}</span>`,
       `<span>Last ${days} days</span>`,
-      `<span>Collected ${stamp ? esc(stamp.slice(0, 16).replace("T", " ")) + " UTC" : "never"}</span>`,
+      `<span>${stamp ? "Collected " + esc(stamp.slice(0, 16).replace("T", " ")) + " UTC" : "No captures yet — collected daily at 06:00 UTC"}</span>`,
     ].join("");
     renderAll();
   } catch (e) {
-    $("status").textContent = "Could not load this game: " + e.message;
+    if (version !== loadVersion || e.name === "AbortError") return;
+    state.game = game;
+    state.allRows = [];
+    state.posts = [];
+    state.buzz = null;
+    state.platform = "all";
+    state.postsError = true;
+    renderAll();
+    showError("Could not load this game’s activity. Check your connection and try again.");
+  } finally {
+    if (version === loadVersion) setLoading(false);
   }
+}
+
+function updateThemeButton() {
+  const dark = isDark();
+  $("theme").innerHTML = dark
+    ? '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg>'
+    : '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.5 13.2A8.5 8.5 0 0 1 10.8 3.5a8.5 8.5 0 1 0 9.7 9.7Z"/></svg>';
+  const label = `Switch to ${dark ? "light" : "dark"} theme`;
+  $("theme").setAttribute("aria-label", label);
+  $("theme").title = label;
 }
 
 function setTheme(dark) {
   document.documentElement.classList.toggle("dark", dark);
-  localStorage.setItem("theme", dark ? "dark" : "light");
-  $("theme").textContent = dark ? "☀" : "☾";
-  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#14161C" : "#EFF1F5");
-  try { renderAll(); } catch { /* nothing rendered yet */ }
+  try { localStorage.setItem("theme", dark ? "dark" : "light"); } catch {}
+  updateThemeButton();
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", dark ? "#171A29" : "#F3F4FA");
+  if (state.game) renderAll();
+}
+
+async function loadComparison() {
+  const pairs = await Promise.all(state.games.map(async (g) => {
+    const d = await j(`/api/trend?game=${encodeURIComponent(g)}&days=7`).catch(() => null);
+    const rows = d?.rows ?? [];
+    const { by, dates } = buildSeries(rows);
+    const last = dates.at(-1);
+    return [g, {
+      total: last ? by[last].views : 0,
+      series: dates.map((x) => by[x].views),
+      plats: [...new Set(rows.map((r) => r.platform))],
+    }];
+  }));
+  state.gameTotals = Object.fromEntries(pairs.map(([g, o]) => [g, o.total]));
+  state.gameSeries = Object.fromEntries(pairs.map(([g, o]) => [g, o.series]));
+  state.gamePlats = Object.fromEntries(pairs.map(([g, o]) => [g, o.plats]));
+  renderGames();
 }
 
 async function init() {
-  $("theme").textContent = isDark() ? "☀" : "☾";
-  $("chartMode").querySelectorAll("button").forEach((b) => {
-    b.onclick = () => {
-      state.mode = b.dataset.m;
-      $("chartMode").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
-      try { renderAll(); } catch { /* not loaded yet */ }
-    };
-  });
-  $("clearPlat").onclick = () => { state.platform = "all"; renderAll(); };
-  $("status").textContent = "Loading…";
+  setLoading(true);
+  $("error").hidden = true;
+  $("status").dataset.state = "loading";
+  $("status").textContent = "Loading official channel activity…";
   try {
     const data = await j("/api/games");
     state.games = data.games ?? [];
     state.labels = data.labels ?? {};
     $("game").innerHTML = state.games.map((g) => `<option value="${esc(g)}">${esc(state.labels[g] ?? g)}</option>`).join("");
-    const pairs = await Promise.all(state.games.map(async (g) => {
-      const d = await j(`/api/trend?game=${g}&days=7`).catch(() => null);
-      const rows = d?.rows ?? [];
-      const { by, dates } = buildSeries(rows);
-      const last = dates.at(-1);
-      return [g, {
-        total: last ? by[last].views : 0,
-        series: dates.map((x) => by[x].views),
-        plats: [...new Set(rows.map((r) => r.platform))],
-      }];
-    }));
-    state.gameTotals = Object.fromEntries(pairs.map(([g, o]) => [g, o.total]));
-    state.gameSeries = Object.fromEntries(pairs.map(([g, o]) => [g, o.series]));
-    state.gamePlats = Object.fromEntries(pairs.map(([g, o]) => [g, o.plats]));
-    renderGames();
-    await load();
-  } catch (e) {
-    $("status").textContent = "Could not reach the API: " + e.message;
+    $("game").disabled = !state.games.length;
+    if (!state.games.length) {
+      $("game").innerHTML = '<option value="">No games configured</option>';
+      renderAll();
+      $("status").textContent = "No games are configured yet.";
+      setLoading(false);
+      return;
+    }
+    // The selected dashboard can load without waiting for every other game.
+    await Promise.all([load(), loadComparison()]);
+  } catch {
+    $("game").innerHTML = '<option value="">Games unavailable</option>';
+    $("game").disabled = true;
+    renderAll();
+    showError("Could not reach the dashboard API. Check your connection and try again.");
+    setLoading(false);
   }
 }
 
+updateThemeButton();
 $("theme").onclick = () => setTheme(!isDark());
 $("game").onchange = load;
 $("days").onchange = load;
 $("q").oninput = (e) => renderGames(e.target.value);
+$("chartMode").querySelectorAll("button").forEach((b) => {
+  b.onclick = () => {
+    state.mode = b.dataset.m;
+    $("chartMode").querySelectorAll("button").forEach((x) => x.setAttribute("aria-pressed", String(x === b)));
+    if (state.game) renderAll();
+  };
+});
+$("clearPlat").onclick = () => { state.platform = "all"; renderAll(); };
+$("refresh").onclick = () => state.games.length ? Promise.all([load(), loadComparison()]) : init();
+$("retry").onclick = () => $("game").disabled ? init() : load();
 init();

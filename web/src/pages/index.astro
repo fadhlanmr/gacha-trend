@@ -1,272 +1,87 @@
 <!doctype html>
 <html lang="en">
 <head>
-<meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Gacha Trend — social activity</title>
-<meta name="description" content="Views, likes, comments and trending topics for gacha games, across every platform, updated daily." />
-<meta name="theme-color" content="#EFF1F5" />
-<link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-<meta property="og:type" content="website" />
-<meta property="og:title" content="Gacha Trend" />
-<meta property="og:description" content="Views, likes, comments and trending topics for gacha games, across every platform, updated daily." />
-<meta name="twitter:card" content="summary" />
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap" />
-<script is:inline>
-  (() => {
-    const saved = localStorage.getItem("theme");
-    const dark = saved ? saved === "dark" : !matchMedia("(prefers-color-scheme: light)").matches;
-    document.documentElement.classList.toggle("dark", dark);
-  })();
-</script>
-<script is:inline src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<style is:global>
-/* ---------- tokens ---------- */
-:root{
-  --paper:#EFF1F5; --card:#FFFFFF; --ink:#161920; --mut:#606875; --rule:#D9DDE5;
-  --up:#1F7A4D; --down:#A63B2E; --hover:rgba(20,22,28,.045);
-  --accent:#161920; --radius:6px;
-  --font-ui:"Nunito Sans",system-ui,-apple-system,sans-serif;
-  --font-display:Outfit,system-ui,-apple-system,sans-serif;
-}
-html.dark{
-  --paper:#14161C; --card:#1B1E26; --ink:#ECEEF3; --mut:#96A0AF; --rule:#2A2F3A;
-  --up:#4FBE86; --down:#E0715F; --hover:rgba(255,255,255,.05);
-  --accent:#ECEEF3;
-}
-*{box-sizing:border-box}
-html{-webkit-text-size-adjust:100%}
-body{
-  margin:0;background:var(--paper);color:var(--ink);
-  font-family:var(--font-ui);
-  font-size:14px;line-height:1.55;
-  font-variant-numeric:tabular-nums;
-}
-a{color:inherit;text-decoration:none}
-h1,h2,h3{font-family:var(--font-display);font-weight:600;letter-spacing:-.015em;margin:0}
-.cell .v,.pval,.tn,.gv strong,.pstats .n{font-family:var(--font-display);font-variant-numeric:tabular-nums}
-button,select,input{font:inherit;color:inherit}
-button{cursor:pointer;background:none;border:0}
-:where(button,select,input,a):focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
-@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
-
-/* ---------- header ---------- */
-.top{border-bottom:1px solid var(--rule);background:var(--paper)}
-.top-in{max-width:1180px;margin:0 auto;padding:0 28px;height:56px;display:flex;align-items:center;gap:14px}
-.brand{font-family:var(--font-display);font-weight:600;font-size:17px;letter-spacing:-.015em}
-.brand em{font-style:normal;color:var(--mut)}
-.theme{margin-left:auto;border:1px solid var(--rule);border-radius:999px;width:32px;height:32px;line-height:1;color:var(--mut)}
-.theme:hover{color:var(--ink);border-color:var(--ink)}
-
-/* ---------- layout ---------- */
-.wrap{max-width:1180px;margin:0 auto;padding:24px 28px 72px}
-@media(max-width:640px){.top-in,.wrap{padding-left:16px;padding-right:16px}}
-
-.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;padding-bottom:14px;border-bottom:1px solid var(--rule);margin-bottom:8px}
-select,.textinput{border:1px solid var(--rule);border-radius:var(--radius);background:var(--card);padding:7px 10px;font-size:13px}
-select:hover,.textinput:hover{border-color:var(--ink)}
-.status{display:flex;flex-wrap:wrap;gap:14px;color:var(--mut);font-size:12px;margin:10px 0 26px}
-
-section{margin-bottom:40px;scroll-margin-top:24px}
-.sec-hd{display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:10px;border-bottom:1px solid var(--rule);margin-bottom:20px}
-.sec-hd h2{font-size:18px}
-.sec-hd .note{color:var(--mut);font-size:12px;display:flex;gap:14px;align-items:baseline}
-.linkish{color:var(--mut);text-decoration:underline;text-underline-offset:2px;font-size:12px}
-.linkish:hover{color:var(--ink)}
-
-/* ---------- summary ---------- */
-.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--rule);border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden}
-@media(max-width:860px){.summary{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:440px){.summary{grid-template-columns:1fr}}
-.cell{background:var(--card);padding:16px 18px}
-.cell .k{color:var(--mut);font-size:12px}
-.cell .v{font-size:27px;font-weight:600;letter-spacing:-.03em;font-stretch:95%;margin-top:6px;line-height:1.1}
-.cell .d{font-size:12px;margin-top:5px;color:var(--mut);min-height:16px}
-.up{color:var(--up)}.down{color:var(--down)}
-
-/* ---------- platform board ---------- */
-.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px}
-.ptile{display:block;text-align:left;background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);padding:15px 16px;border-top:3px solid var(--c)}
-.ptile:hover{border-color:var(--c)}
-.ptile[aria-pressed="true"]{box-shadow:inset 0 0 0 1px var(--c)}
-.ptop{display:flex;align-items:center;gap:9px;font-size:13px;font-weight:500}
-.pmark{width:22px;height:22px;display:grid;place-items:center;color:var(--c);flex:none}
-.pmark svg{width:16px;height:16px;fill:currentColor}
-.pval{font-size:24px;font-weight:600;letter-spacing:-.03em;font-stretch:95%;margin-top:12px;line-height:1.1}
-.punit{display:block;color:var(--mut);font-size:11px;margin-top:3px}
-.pmeta{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:12px;color:var(--mut);margin-top:4px}
-.pbar{display:block;height:3px;background:var(--rule);border-radius:2px;margin-top:12px;overflow:hidden}
-.pbar i{display:block;height:100%;background:var(--c);border-radius:2px;transition:width .3s}
-
-/* ---------- chart ---------- */
-.seg{display:inline-flex;border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden}
-.seg button{padding:5px 11px;font-size:12px;color:var(--mut);border-right:1px solid var(--rule)}
-.seg button:last-child{border-right:0}
-.seg button[aria-pressed="true"]{color:var(--ink);background:var(--hover)}
-.chartbox{position:relative;height:300px}
-@media(max-width:640px){.chartbox{height:230px}}
-
-/* ---------- topics ---------- */
-.topics{display:grid;grid-template-columns:1fr 1fr;gap:0}
-.tcol{padding:0 26px}
-.tcol:first-child{padding-left:0}
-.tcol:last-child{padding-right:0;border-left:1px solid var(--rule)}
-@media(max-width:720px){.topics{grid-template-columns:1fr}.tcol{padding:0}.tcol:last-child{border-left:0;border-top:1px solid var(--rule);margin-top:18px;padding-top:18px}}
-.coltitle{color:var(--mut);font-size:12px;margin-bottom:12px}
-.trow{display:grid;grid-template-columns:1fr 44px;gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid var(--rule)}
-.trow:last-child{border-bottom:0}
-.tname{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.tbar{height:3px;background:var(--rule);border-radius:2px;margin-top:6px;overflow:hidden}
-.tbar i{display:block;height:100%;background:var(--ink);border-radius:2px}
-.tn{text-align:right;font-size:13px;font-weight:600}
-
-/* ---------- games ---------- */
-.grow{display:grid;grid-template-columns:1fr 96px auto;gap:14px;align-items:center;padding:12px 0;border-bottom:1px solid var(--rule);width:100%;text-align:left}
-.grow:last-child{border-bottom:0}
-.grow:hover .gname{text-decoration:underline;text-underline-offset:3px}
-@media(max-width:720px){.grow{grid-template-columns:1fr auto}.grow .gspark{display:none}}
-.gname{font-size:14px}
-.gsub{color:var(--mut);font-size:12px;margin-top:2px}
-.spark{display:block;width:100%;height:26px}
-.gspark{width:96px}
-
-/* ---------- posts ---------- */
-.postgrid{display:flex;flex-direction:column;gap:14px}
-.postcard{display:grid;grid-template-columns:280px 1fr;min-height:150px;
-  background:var(--card);border:1px solid var(--rule);border-radius:var(--radius);overflow:hidden}
-.postcard:hover{border-color:var(--ink)}
-/* the image fades out into the card, so the text column reads on plain background */
-.pthumb{position:relative;overflow:hidden;background:transparent;
-  -webkit-mask-image:linear-gradient(90deg,#000 34%,transparent 84%);
-  mask-image:linear-gradient(90deg,#000 34%,transparent 84%)}
-.pthumb img{width:100%;height:100%;object-fit:cover;object-position:left center;display:block}
-.pthumb.ph{display:grid;place-items:center;color:var(--c,var(--mut));background:var(--hover)}
-.pthumb.ph svg{width:34px;height:34px;fill:currentColor;opacity:.5}
-.pbody{display:flex;flex-direction:column;gap:10px;padding:16px 22px 16px 2px}
-.ptitle{font-family:var(--font-display);font-size:16px;font-weight:500;line-height:1.3;max-width:70ch;
-  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
-.postcard:hover .ptitle{text-decoration:underline;text-underline-offset:3px}
-.pmeta2{display:flex;align-items:center;gap:8px;color:var(--mut);font-size:12px}
-.pstats{display:flex;gap:34px;margin:auto 0 0;padding-top:12px;border-top:1px solid var(--rule)}
-.pstats>div{display:flex;flex-direction:column;gap:1px}
-.pstats .k{color:var(--mut);font-size:11px}
-.pstats .n{font-size:16px;font-weight:600;letter-spacing:-.015em}
-@media(max-width:900px){.postcard{grid-template-columns:210px 1fr}.pbody{padding-right:16px}}
-@media(max-width:620px){
-  .postcard{grid-template-columns:1fr;min-height:0}
-  .pthumb{aspect-ratio:16/9;-webkit-mask-image:linear-gradient(180deg,#000 58%,transparent 100%);mask-image:linear-gradient(180deg,#000 58%,transparent 100%)}
-  .pbody{padding:0 16px 16px;gap:9px}
-  .ptitle{font-size:15px}
-  .pstats{gap:24px}
-}
-.mark{width:7px;height:7px;border-radius:50%;flex:none;display:inline-block}
-.empty{color:var(--mut);font-size:13px;padding:10px 0}
-
-/* ---------- loading ---------- */
-.sk{display:block;height:16px;border-radius:3px;background:var(--hover)}
-.sk.v{height:26px;width:60%;margin-top:8px}
-.sk.row{height:42px;margin:6px 0}
-footer{border-top:1px solid var(--rule);margin-top:8px;padding-top:18px;color:var(--mut);font-size:12px}
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gacha Trend — social activity</title>
+  <meta name="description" content="Follow the social activity of your favorite gacha games. Compare platforms, explore daily trends, and find the posts getting attention." />
+  <meta name="theme-color" content="#F3F4FA" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="Gacha Trend" />
+  <meta property="og:description" content="Social activity, daily trends, and the posts getting attention in gacha games." />
+  <meta name="twitter:card" content="summary" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;600;700&family=Outfit:wght@400;500;600;700&display=swap" />
+  <link rel="stylesheet" href="/dashboard.css" />
+  <script is:inline>
+    (() => {
+      let saved;
+      try { saved = localStorage.getItem("theme"); } catch {}
+      const dark = saved ? saved === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+      document.documentElement.classList.toggle("dark", dark);
+      document.querySelector('meta[name="theme-color"]').content = dark ? "#171A29" : "#F3F4FA";
+    })();
+  </script>
+  <script is:inline defer src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 </head>
 <body>
-<header class="top">
-  <div class="top-in">
-    <div class="brand">Gacha Trend <em>/ social activity</em></div>
-    <button id="theme" class="theme" aria-label="Switch colour theme">☾</button>
-  </div>
-</header>
-
-<main class="wrap">
-  <div class="toolbar">
-    <select id="game" aria-label="Game"></select>
-    <select id="days" aria-label="Time window">
-      <option value="7">Last 7 days</option>
-      <option value="14">Last 14 days</option>
-      <option value="30">Last 30 days</option>
-    </select>
-  </div>
-  <p class="status" id="status" aria-live="polite">Loading…</p>
-
-  <section id="overview">
-    <div class="sec-hd">
-      <h2>Overview</h2>
-      <span class="note" id="overviewNote"></span>
+  <a class="skip-link" href="#main">Skip to dashboard</a>
+  <header class="top">
+    <div class="top-in">
+      <a class="brand" href="/" aria-label="Gacha Trend home"><img src="/favicon.svg" width="34" height="34" alt="" /><span>Gacha Trend</span></a>
+      <nav class="nav" aria-label="Dashboard sections"><a href="#overview">Overview</a><a href="#activity">Activity</a><a href="#posts">Top posts</a></nav>
+      <span class="cadence">Updated daily</span>
+      <button id="theme" class="icon-button" aria-label="Switch to dark theme" title="Switch theme"></button>
     </div>
-    <div class="summary" id="summary">
-      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
-      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
-      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
-      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
-      <div class="cell"><span class="k sk"></span><span class="sk v"></span><span class="sk"></span></div>
-    </div>
-
-    <div class="sec-hd" style="margin-top:34px">
-      <h2>Platforms</h2>
-      <span class="note"><span id="boardNote"></span><button class="linkish" id="clearPlat" hidden>Clear</button></span>
-    </div>
-    <div class="board" id="board">
-      <div class="ptile"><span class="sk row"></span></div>
-      <div class="ptile"><span class="sk row"></span></div>
-    </div>
-  </section>
-
-  <section id="activity">
-    <div class="sec-hd">
-      <h2>Activity</h2>
-      <span class="note" id="chartNote"></span>
-      <div class="seg" id="chartMode">
-        <button data-m="platform" aria-pressed="true">By platform</button>
-        <button data-m="total" aria-pressed="false">Total</button>
-        <button data-m="gain" aria-pressed="false">Daily gain</button>
+  </header>
+  <main class="wrap" id="main">
+    <div class="page-heading">
+      <div><p class="page-intro">Your daily view of gacha social activity</p><h1 id="gameTitle">Social activity</h1><p class="page-description">See what’s getting attention across official channels.</p></div>
+      <div class="toolbar" aria-label="Dashboard filters">
+        <label class="field"><span>Game</span><select id="game" disabled><option>Loading games…</option></select></label>
+        <label class="field"><span>Time window</span><select id="days"><option value="7">Last 7 days</option><option value="14">Last 14 days</option><option value="30">Last 30 days</option></select></label>
+        <button id="refresh" class="icon-button refresh" aria-label="Refresh dashboard" title="Refresh dashboard"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20 7v5h-5M4 17v-5h5"/><path d="M6.1 6.2A8 8 0 0 1 20 12M4 12a8 8 0 0 0 13.9 5.8"/></svg></button>
       </div>
     </div>
-    <div class="chartbox"><canvas id="chart"></canvas></div>
-    <div class="empty" id="chartEmpty" hidden>Not enough captures yet — a second collection is needed before a trend line appears.</div>
-  </section>
-
-  <section id="topics">
-    <div class="sec-hd">
-      <h2>Topics</h2>
-      <span class="note" id="topicsNote"></span>
-    </div>
-    <div class="topics">
-      <div class="tcol">
-        <div class="coltitle">Keywords being tracked</div>
-        <div id="topicsKw"><span class="sk row"></span><span class="sk row"></span></div>
+    <div class="status-line"><p class="status" id="status" role="status">Loading official channel activity…</p><span class="scope" id="scope">All platforms</span></div>
+    <div class="error-banner" id="error" role="alert" hidden><span id="errorMessage"></span><button id="retry" class="retry-button">Try again</button></div>
+    <div id="dashboard" aria-busy="true">
+      <section id="overview" aria-labelledby="overviewTitle">
+        <div class="sec-hd"><h2 id="overviewTitle">At a glance</h2><span class="note" id="overviewNote">Latest available capture</span></div>
+        <div class="summary" id="summary">{["Views", "Likes", "Comments", "Engagement", "Posts tracked"].map((label) => <div class="cell"><span class="k">{label}</span><span class="sk v"></span><span class="sk short"></span></div>)}</div>
+      </section>
+      <section id="platforms" aria-labelledby="platformsTitle">
+        <div class="sec-hd"><h2 id="platformsTitle">Platform breakdown</h2><span class="note"><span id="boardNote">Select a platform to explore</span><button class="linkish" id="clearPlat" hidden>Show all</button></span></div>
+        <div class="board" id="board"><div class="ptile"><span class="sk row"></span></div><div class="ptile"><span class="sk row"></span></div></div>
+      </section>
+      <div class="workspace">
+        <section id="activity" class="panel activity-panel" aria-labelledby="activityTitle">
+          <div class="sec-hd">
+            <div><h2 id="activityTitle">Activity over time</h2><p class="section-description" id="chartDescription">View gains between daily captures, grouped by platform.</p></div>
+            <div class="seg" id="chartMode" role="group" aria-label="Chart view"><button data-m="platform" aria-pressed="true">By platform</button><button data-m="total" aria-pressed="false">Totals</button><button data-m="gain" aria-pressed="false">Daily gain</button></div>
+          </div>
+          <div class="chart-stage"><div class="chartbox" id="chartBox"><canvas id="chart" role="img" aria-label="Daily social activity chart" aria-describedby="chartDescription chartNote"></canvas></div><div class="chart-empty" id="chartEmpty" hidden></div></div>
+          <p class="chart-note" id="chartNote"></p>
+        </section>
+        <section id="games" class="panel games-panel" aria-labelledby="gamesTitle">
+          <div class="sec-hd"><div><h2 id="gamesTitle">Across games</h2><p class="section-description">Latest views in the last 7 days</p></div><span class="count-badge" id="gameCount">—</span></div>
+          <label class="search-field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg><input id="q" type="search" placeholder="Find a game" aria-label="Filter games" /></label>
+          <div id="gameList"><span class="sk row"></span><span class="sk row"></span></div>
+        </section>
       </div>
-      <div class="tcol">
-        <div class="coltitle">Hashtags in post titles</div>
-        <div id="topicsTags"><span class="sk row"></span></div>
-      </div>
+      <section id="topics" class="panel" aria-labelledby="topicsTitle">
+        <div class="sec-hd"><div><h2 id="topicsTitle">In the conversation</h2><p class="section-description">Keywords and hashtags appearing in official post titles.</p></div><span class="note" id="topicsNote"></span></div>
+        <div class="topics"><div class="tcol"><h3 class="coltitle">Tracked keywords</h3><div id="topicsKw"><span class="sk row"></span><span class="sk row"></span></div></div><div class="tcol"><h3 class="coltitle">Hashtags</h3><div id="topicsTags"><span class="sk row"></span></div></div></div>
+      </section>
+      <section id="posts" aria-labelledby="postsTitle">
+        <div class="sec-hd"><div><h2 id="postsTitle">Posts getting attention</h2><p class="section-description">Explore the top posts from official channels.</p></div><span class="note" id="postsNote"></span></div>
+        <div class="postgrid" id="postList"><span class="sk post-skeleton"></span><span class="sk post-skeleton"></span><span class="sk post-skeleton"></span></div>
+      </section>
     </div>
-  </section>
-
-  <section id="games">
-    <div class="sec-hd">
-      <h2>Games</h2>
-      <span class="note"><input id="q" class="textinput" placeholder="Filter games" aria-label="Filter games" /></span>
-    </div>
-    <div id="gameList"><span class="sk row"></span><span class="sk row"></span></div>
-  </section>
-
-  <section id="posts">
-    <div class="sec-hd">
-      <h2>Posts</h2>
-      <span class="note" id="postsNote"></span>
-    </div>
-    <div class="postgrid" id="postList">
-      <span class="sk" style="height:150px"></span>
-      <span class="sk" style="height:150px"></span>
-    </div>
-  </section>
-
-  <footer>
-    Collected from official channels once a day at 06:00 UTC. Figures are estimates and may lag behind the live platform.
-  </footer>
-</main>
-<script src="/dashboard.js" type="module"></script>
+    <footer><span class="footer-brand">Gacha Trend</span><p>Official channels, collected daily at 06:00 UTC. Counts reflect collected posts and may differ from live platform totals.</p><a href="#main">Back to top</a></footer>
+  </main>
+  <script src="/dashboard.js" type="module"></script>
 </body>
 </html>
